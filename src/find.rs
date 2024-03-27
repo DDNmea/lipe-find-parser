@@ -13,14 +13,15 @@ use nom::sequence::delimited;
 use nom::sequence::preceded;
 use nom::sequence::separated_pair;
 use nom::sequence::terminated;
+use nom::sequence::tuple;
 use nom::IResult;
 use nom::{bytes, character};
+use nom_locate::LocatedSpan;
+use nom_recursive::{recursive_parser, RecursiveInfo};
 
-fn parse_int(input: &str) -> IResult<&str, i32> {
-    character::complete::i32::<&str, Error<&str>>(input)
-}
+pub type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
 
-fn parse_global_option(input: &str) -> IResult<&str, ast::GlobalOption> {
+fn parse_global_option(input: Span) -> IResult<Span, ast::GlobalOption> {
     alt((
         value(ast::GlobalOption::Depth, tag("-depth")),
         map(
@@ -42,44 +43,113 @@ fn parse_global_option(input: &str) -> IResult<&str, ast::GlobalOption> {
     ))(input)
 }
 
-fn parse_string(input: &str) -> IResult<&str, &str> {
+fn parse_string(input: Span) -> IResult<Span, String> {
+    map(
+        alt((
+            delimited(tag("'"), take_until1("'"), tag("'")),
+            take_while1(|c| c != ' ' && c != '\n' && c != ')'),
+        )),
+        |s: Span| String::from(*s.fragment()),
+    )(input)
+}
+
+fn parse_test(input: Span) -> IResult<Span, ast::Test> {
     alt((
-        delimited(tag("'"), take_until1("'"), tag("'")),
-        take_while1(|c| c != ' ' && c != '\n' && c != ')'),
+        map(
+            preceded(
+                tuple((tag("-amin"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::AccessMin,
+        ),
+        map(
+            preceded(
+                tuple((tag("-anewer"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::AccessNewer,
+        ),
+        map(
+            preceded(
+                tuple((tag("-atime"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::AccessTime,
+        ),
+        map(
+            preceded(
+                tuple((tag("-cmin"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::ChangeMin,
+        ),
+        map(
+            preceded(
+                tuple((tag("-cnewer"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::ChangeNewer,
+        ),
+        map(
+            preceded(
+                tuple((tag("-ctime"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::ChangeTime,
+        ),
+        value(ast::Test::Empty, tag("-empty")),
+        value(ast::Test::Executable, tag("-executable")),
+        value(ast::Test::False, tag("-false")),
+        value(ast::Test::True, tag("-true")),
     ))(input)
 }
 
-fn parse_test(input: &str) -> IResult<&str, ast::Test> {
+#[recursive_parser]
+fn parse_operator(s: Span) -> IResult<Span, ast::Operator> {
     alt((
         map(
             separated_pair(
-                tag("-amin"),
-                character::complete::space1,
-                character::complete::i32,
+                parse_expression,
+                delimited(
+                    character::complete::space1,
+                    alt((tag("-and"), tag("-a"))),
+                    character::complete::space1,
+                ),
+                parse_expression,
             ),
-            |(_, n)| ast::Test::AccessMin(n),
-        ),
-        map(
-            separated_pair(tag("-anewer"), character::complete::space1, parse_string),
-            |(_, n)| ast::Test::AccessNewer(String::from(n)),
-        ),
-        map(
-            separated_pair(
-                tag("-atime"),
-                character::complete::space1,
-                character::complete::i32,
-            ),
-            |(_, n)| ast::Test::AccessTime(n),
-        ),
-    ))(input)
-}
-
-fn parse_operator(input: &str) -> IResult<&str, ast::Operator> {
-    log::info!("Parsing operator !");
-    alt((
-        map(
-            separated_pair(parse_expression, tag(" -and "), parse_expression),
             |(lhs, rhs)| ast::Operator::And(lhs, rhs),
+        ),
+        map(
+            separated_pair(
+                parse_expression,
+                delimited(
+                    character::complete::space1,
+                    alt((tag("-or"), tag("-o"))),
+                    character::complete::space1,
+                ),
+                parse_expression,
+            ),
+            |(lhs, rhs)| ast::Operator::Or(lhs, rhs),
+        ),
+        map(
+            separated_pair(
+                parse_expression,
+                delimited(
+                    character::complete::space0,
+                    tag(","),
+                    character::complete::space1,
+                ),
+                parse_expression,
+            ),
+            |(lhs, rhs)| ast::Operator::List(lhs, rhs),
+        ),
+        map(
+            separated_pair(
+                parse_expression,
+                character::complete::space1,
+                parse_expression,
+            ),
+            |(lhs, rhs)| ast::Operator::And(rhs, lhs),
         ),
         map(
             delimited(
@@ -97,11 +167,10 @@ fn parse_operator(input: &str) -> IResult<&str, ast::Operator> {
             ),
             |(_, e)| ast::Operator::Not(e),
         ),
-    ))(input)
+    ))(s)
 }
 
-pub fn parse_expression(input: &str) -> IResult<&str, ast::Expression> {
-    log::info!("Parsing expression !");
+pub fn parse_expression(input: Span) -> IResult<Span, ast::Expression> {
     alt((
         map(parse_operator, |val| {
             let val = std::rc::Rc::new(val);
@@ -112,31 +181,26 @@ pub fn parse_expression(input: &str) -> IResult<&str, ast::Expression> {
     ))(input)
 }
 
-#[test]
-fn test_parse_int() {
-    let (_, res) = character::complete::i32::<&str, Error<&str>>("+32").unwrap();
-    assert_eq!(32, res);
-    let (_, res) = character::complete::i32::<&str, Error<&str>>("-24").unwrap();
-    assert_eq!(-24, res);
-    let (_, res) = character::complete::i32::<&str, Error<&str>>("16").unwrap();
-    assert_eq!(16, res)
+#[cfg(test)]
+fn s(input: &str) -> Span {
+    Span::new_extra(input, RecursiveInfo::new())
 }
 
 #[test]
 fn test_parse_global_option() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, res) = parse_global_option("-depth")?;
+    let (_, res) = parse_global_option(s("-depth"))?;
     assert_eq!(ast::GlobalOption::Depth, res);
 
-    let (_, res) = parse_global_option("-maxdepth 44")?;
+    let (_, res) = parse_global_option(s("-maxdepth 44"))?;
     assert_eq!(ast::GlobalOption::MaxDepth(44), res);
 
-    let (_, res) = parse_global_option("-mindepth 44")?;
+    let (_, res) = parse_global_option(s("-mindepth 44"))?;
     assert_eq!(ast::GlobalOption::MinDepth(44), res);
 
-    let res = parse_global_option("-maxdepth -44");
+    let res = parse_global_option(s("-maxdepth -44"));
     assert!(res.is_err());
 
-    let res = parse_global_option("-mindepth -44");
+    let res = parse_global_option(s("-mindepth -44"));
     assert!(res.is_err());
 
     Ok(())
@@ -144,33 +208,86 @@ fn test_parse_global_option() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_parse_test() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, res) = parse_test("-amin 44")?;
+    let (_, res) = parse_test(s("-amin 44"))?;
     assert_eq!(ast::Test::AccessMin(44), res);
 
-    let (_, res) = parse_test("-anewer '/path/to/file with spaces'")?;
+    let (_, res) = parse_test(s("-anewer '/path/to/file with spaces'"))?;
     assert_eq!(
         ast::Test::AccessNewer(String::from("/path/to/file with spaces")),
         res
     );
 
-    let (_, res) = parse_test("-anewer /path/to/file\n")?;
+    let (_, res) = parse_test(s("-anewer /path/to/file\n"))?;
     assert_eq!(ast::Test::AccessNewer(String::from("/path/to/file")), res);
 
-    let (_, res) = parse_test("-anewer /path/to/file")?;
+    let (_, res) = parse_test(s("-anewer /path/to/file"))?;
     assert_eq!(ast::Test::AccessNewer(String::from("/path/to/file")), res);
 
     Ok(())
 }
 
 #[test]
-fn test_parse_expression() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, res) = parse_expression("-amin 44")?;
-    assert_eq!(ast::Expression::Test(ast::Test::AccessMin(44)), res);
+fn test_parse_operator() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_operator(s("! -true"))?;
+    assert_eq!(
+        ast::Operator::Not(ast::Expression::Test(ast::Test::True)),
+        res
+    );
 
-    let (_, res) = parse_expression("! -amin 44")?;
+    let (_, res) = parse_operator(s("( -true )"))?;
+    assert_eq!(
+        ast::Operator::Precedence(ast::Expression::Test(ast::Test::True)),
+        res
+    );
+
+    let (_, res) = parse_operator(s("-true -a -true"))?;
+    assert_eq!(
+        ast::Operator::And(
+            ast::Expression::Test(ast::Test::True),
+            ast::Expression::Test(ast::Test::True)
+        ),
+        res
+    );
+
+    let (_, other_and) = parse_operator(s("-true -and -true"))?;
+    assert_eq!(other_and, res);
+
+    let (_, res) = parse_operator(s("-true -o -true"))?;
+    assert_eq!(
+        ast::Operator::Or(
+            ast::Expression::Test(ast::Test::True),
+            ast::Expression::Test(ast::Test::True)
+        ),
+        res
+    );
+
+    let (_, other_or) = parse_operator(s("-true -or -true"))?;
+    assert_eq!(other_or, res);
+
+    let (_, res) = parse_operator(s("-true, -true"))?;
+    assert_eq!(
+        ast::Operator::List(
+            ast::Expression::Test(ast::Test::True),
+            ast::Expression::Test(ast::Test::True)
+        ),
+        res
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_expression() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_expression(s("-true"))?;
+    assert_eq!(ast::Expression::Test(ast::Test::True), res);
+
+    let (_, res) = parse_expression(s("-depth"))?;
+    assert_eq!(ast::Expression::Global(ast::GlobalOption::Depth), res);
+
+    let (_, res) = parse_expression(s("! -true"))?;
     assert_eq!(
         ast::Expression::Operator(std::rc::Rc::new(ast::Operator::Not(ast::Expression::Test(
-            ast::Test::AccessMin(44)
+            ast::Test::True
         )))),
         res
     );

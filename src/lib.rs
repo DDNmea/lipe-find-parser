@@ -54,7 +54,7 @@ mod ast {
     }
 
     #[derive(Debug, Clone, PartialEq)]
-    enum Action {
+    pub enum Action {
         //Exec(Vec<String>),
         //ExecOnAll(Vec<String>)
         //ExecOnParent(Vec<String>)
@@ -102,4 +102,4 @@ mod ast {
     }
 }
 
-pub use find::parse_expression;
+pub use find::{parse_expression, Span};
