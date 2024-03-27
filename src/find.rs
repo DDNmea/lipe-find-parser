@@ -25,20 +25,18 @@ fn parse_global_option(input: Span) -> IResult<Span, ast::GlobalOption> {
     alt((
         value(ast::GlobalOption::Depth, tag("-depth")),
         map(
-            separated_pair(
-                tag("-mindepth"),
-                character::complete::space1,
+            preceded(
+                tuple((tag("-mindepth"), character::complete::space1)),
                 character::complete::u32,
             ),
-            |(_, depth)| ast::GlobalOption::MinDepth(depth),
+            ast::GlobalOption::MinDepth,
         ),
         map(
-            separated_pair(
-                tag("-maxdepth"),
-                character::complete::space1,
+            preceded(
+                tuple((tag("-maxdepth"), character::complete::space1)),
                 character::complete::u32,
             ),
-            |(_, depth)| ast::GlobalOption::MaxDepth(depth),
+            ast::GlobalOption::MaxDepth,
         ),
     ))(input)
 }
@@ -100,7 +98,174 @@ fn parse_test(input: Span) -> IResult<Span, ast::Test> {
         value(ast::Test::Empty, tag("-empty")),
         value(ast::Test::Executable, tag("-executable")),
         value(ast::Test::False, tag("-false")),
-        value(ast::Test::True, tag("-true")),
+        map(
+            preceded(
+                tuple((tag("-fstype"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::FsType,
+        ),
+        map(
+            preceded(
+                tuple((tag("-gid"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::GroupId,
+        ),
+        map(
+            preceded(
+                tuple((tag("-group"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::Group,
+        ),
+        map(
+            preceded(
+                tuple((tag("-ilname"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::InsensitiveLinkName,
+        ),
+        map(
+            preceded(
+                tuple((tag("-iname"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::InsensitiveName,
+        ),
+        map(
+            preceded(
+                tuple((tag("-inum"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::InodeNumber,
+        ),
+        map(
+            preceded(
+                tuple((tag("-ipath"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::InsensitivePath,
+        ),
+        map(
+            preceded(
+                tuple((tag("-iregex"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::InsensitiveRegex,
+        ),
+        map(
+            preceded(
+                tuple((tag("-links"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::Hardlinks,
+        ),
+        map(
+            preceded(
+                tuple((tag("-mmin"), character::complete::space1)),
+                character::complete::i32,
+            ),
+            ast::Test::ModifyMin,
+        ),
+        map(
+            preceded(
+                tuple((tag("-mnewer"), character::complete::space1)),
+                parse_string,
+            ),
+            ast::Test::ModifyNewer,
+        ),
+        alt((
+            map(
+                preceded(
+                    tuple((tag("-mtime"), character::complete::space1)),
+                    character::complete::i32,
+                ),
+                ast::Test::ModifyTime,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-name"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Name,
+            ),
+            value(ast::Test::NoGroup, tag("-nouser")),
+            value(ast::Test::NoUser, tag("-nogroup")),
+            map(
+                preceded(
+                    tuple((tag("-path"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Path,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-perm"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Perm,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-perm+"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::PermAtLeast,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-perm/"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::PermAny,
+            ),
+            value(ast::Test::Readable, tag("-readable")),
+            map(
+                preceded(
+                    tuple((tag("-regex"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Regex,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-samefile"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Samefile,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-size"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Size,
+            ),
+            value(ast::Test::True, tag("-true")),
+            map(
+                preceded(
+                    tuple((tag("-type"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::Type,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-uid"), character::complete::space1)),
+                    character::complete::i32,
+                ),
+                ast::Test::UserId,
+            ),
+            map(
+                preceded(
+                    tuple((tag("-user"), character::complete::space1)),
+                    parse_string,
+                ),
+                ast::Test::User,
+            ),
+            value(ast::Test::Writable, tag("-writable")),
+        )),
     ))(input)
 }
 
@@ -160,12 +325,11 @@ fn parse_operator(s: Span) -> IResult<Span, ast::Operator> {
             ast::Operator::Precedence,
         ),
         map(
-            separated_pair(
-                alt((tag("!"), tag("-not"))),
-                character::complete::space0,
+            preceded(
+                tuple((alt((tag("!"), tag("-not"))), character::complete::space0)),
                 parse_expression,
             ),
-            |(_, e)| ast::Operator::Not(e),
+            ast::Operator::Not,
         ),
     ))(s)
 }

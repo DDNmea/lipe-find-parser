@@ -31,8 +31,8 @@ mod ast {
         InsensitiveRegex(String),
         Hardlinks(i32),
         ModifyMin(i32),
-        ModifyTime(i32),
         ModifyNewer(String),
+        ModifyTime(i32),
         Name(String),
         //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
         NoGroup,
@@ -41,15 +41,15 @@ mod ast {
         Perm(String),
         PermAtLeast(String),
         PermAny(String),
-        //Readable // Should always be true as this is an admin tool
+        Readable,
         Regex(String),
         Samefile(String),
-        Size(Size),
+        Size(String),
         True,
-        Type(Type),
-        Uid(i32),
+        Type(String),
+        UserId(i32),
         User(String),
-        //Writable
+        Writable,
         //XType(Type)
     }
 
