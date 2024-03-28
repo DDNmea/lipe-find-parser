@@ -5,6 +5,13 @@ mod ast {
     use std::rc::Rc;
 
     #[derive(Debug, Clone, PartialEq)]
+    pub enum Comparison {
+        GreaterThan(u32),
+        LesserThan(u32),
+        Equal(u32),
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
     pub enum Size {}
 
     #[derive(Debug, Clone, PartialEq)]
@@ -12,27 +19,27 @@ mod ast {
 
     #[derive(Debug, Clone, PartialEq)]
     pub enum Test {
-        AccessMin(i32),
+        AccessMin(Comparison),
         AccessNewer(String),
-        AccessTime(i32),
-        ChangeMin(i32),
+        AccessTime(Comparison),
+        ChangeMin(Comparison),
         ChangeNewer(String),
-        ChangeTime(i32),
+        ChangeTime(Comparison),
         Empty,
         Executable,
         False,
         FsType(String),
-        GroupId(i32),
+        GroupId(u32),
         Group(String),
         InsensitiveLinkName(String), //TODO Pattern
         InsensitiveName(String),     //TODO Pattern
-        InodeNumber(i32),
+        InodeNumber(Comparison),
         InsensitivePath(String),
         InsensitiveRegex(String),
-        Hardlinks(i32),
-        ModifyMin(i32),
+        Hardlinks(u32),
+        ModifyMin(Comparison),
         ModifyNewer(String),
-        ModifyTime(i32),
+        ModifyTime(Comparison),
         Name(String),
         //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
         NoGroup,
@@ -47,7 +54,7 @@ mod ast {
         Size(String),
         True,
         Type(String),
-        UserId(i32),
+        UserId(u32),
         User(String),
         Writable,
         //XType(Type)

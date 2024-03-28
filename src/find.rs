@@ -1,10 +1,10 @@
 #![allow(unused_imports)]
-use crate::ast::{Action, Expression, GlobalOption, Operator, Test};
+use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, Test};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until1;
 use nom::bytes::complete::take_while1;
-use nom::character::complete::{i32 as parse_i32, u32 as parse_u32};
+use nom::character::complete::u32 as parse_u32;
 use nom::combinator::map;
 use nom::combinator::recognize;
 use nom::combinator::value;
@@ -31,11 +31,11 @@ macro_rules! parse_type_into {
     };
 }
 
-fn parse_global_option(input: Span) -> IResult<Span, GlobalOption> {
+fn parse_comp(input: Span) -> IResult<Span, Comparison> {
     alt((
-        value(GlobalOption::Depth, tag("-depth")),
-        parse_type_into!("-mindepth", GlobalOption::MinDepth, parse_u32),
-        parse_type_into!("-maxdepth", GlobalOption::MaxDepth, parse_u32),
+        map(preceded(tag("+"), parse_u32), Comparison::GreaterThan),
+        map(preceded(tag("-"), parse_u32), Comparison::LesserThan),
+        map(parse_u32, Comparison::Equal),
     ))(input)
 }
 
@@ -49,30 +49,40 @@ fn parse_string(input: Span) -> IResult<Span, String> {
     )(input)
 }
 
+fn parse_global_option(input: Span) -> IResult<Span, GlobalOption> {
+    alt((
+        value(GlobalOption::Depth, tag("-depth")),
+        parse_type_into!("-mindepth", GlobalOption::MinDepth, parse_u32),
+        parse_type_into!("-maxdepth", GlobalOption::MaxDepth, parse_u32),
+    ))(input)
+}
+
 fn parse_test(input: Span) -> IResult<Span, Test> {
     alt((
-        parse_type_into!("-amin", Test::AccessMin, parse_i32),
-        parse_type_into!("-anewer", Test::AccessNewer, parse_string),
-        parse_type_into!("-atime", Test::AccessTime, parse_i32),
-        parse_type_into!("-cmin", Test::ChangeMin, parse_i32),
-        parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
-        parse_type_into!("-ctime", Test::ChangeTime, parse_i32),
-        value(Test::Empty, tag("-empty")),
-        value(Test::Executable, tag("-executable")),
-        value(Test::False, tag("-false")),
-        parse_type_into!("-fstype", Test::FsType, parse_string),
-        parse_type_into!("-gid", Test::GroupId, parse_i32),
-        parse_type_into!("-group", Test::Group, parse_string),
-        parse_type_into!("-ilname", Test::InsensitiveLinkName, parse_string),
-        parse_type_into!("-iname", Test::InsensitiveName, parse_string),
-        parse_type_into!("-inum", Test::InodeNumber, parse_i32),
-        parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
-        parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
-        parse_type_into!("-links", Test::Hardlinks, parse_i32),
-        parse_type_into!("-mmin", Test::ModifyMin, parse_i32),
-        parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
         alt((
-            parse_type_into!("-mtime", Test::ModifyTime, parse_i32),
+            parse_type_into!("-amin", Test::AccessMin, parse_comp),
+            parse_type_into!("-anewer", Test::AccessNewer, parse_string),
+            parse_type_into!("-atime", Test::AccessTime, parse_comp),
+            parse_type_into!("-cmin", Test::ChangeMin, parse_comp),
+            parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
+            parse_type_into!("-ctime", Test::ChangeTime, parse_comp),
+            value(Test::Empty, tag("-empty")),
+            value(Test::Executable, tag("-executable")),
+            value(Test::False, tag("-false")),
+            parse_type_into!("-fstype", Test::FsType, parse_string),
+            parse_type_into!("-gid", Test::GroupId, parse_u32),
+            parse_type_into!("-group", Test::Group, parse_string),
+            parse_type_into!("-ilname", Test::InsensitiveLinkName, parse_string),
+            parse_type_into!("-iname", Test::InsensitiveName, parse_string),
+            parse_type_into!("-inum", Test::InodeNumber, parse_comp),
+            parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
+            parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
+            parse_type_into!("-links", Test::Hardlinks, parse_u32),
+            parse_type_into!("-mmin", Test::ModifyMin, parse_comp),
+            parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
+            parse_type_into!("-mtime", Test::ModifyTime, parse_comp),
+        )),
+        alt((
             parse_type_into!("-name", Test::Name, parse_string),
             value(Test::NoGroup, tag("-nouser")),
             value(Test::NoUser, tag("-nogroup")),
@@ -86,7 +96,7 @@ fn parse_test(input: Span) -> IResult<Span, Test> {
             parse_type_into!("-size", Test::Size, parse_string),
             value(Test::True, tag("-true")),
             parse_type_into!("-type", Test::Type, parse_string),
-            parse_type_into!("-uid", Test::UserId, parse_i32),
+            parse_type_into!("-uid", Test::UserId, parse_u32),
             parse_type_into!("-user", Test::User, parse_string),
             value(Test::Writable, tag("-writable")),
         )),
@@ -175,6 +185,37 @@ fn s(input: &str) -> Span {
 }
 
 #[test]
+fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_comp(s("44"))?;
+    assert_eq!(Comparison::Equal(44), res);
+
+    let (_, res) = parse_comp(s("+44"))?;
+    assert_eq!(Comparison::GreaterThan(44), res);
+
+    let (_, res) = parse_comp(s("-44"))?;
+    assert_eq!(Comparison::LesserThan(44), res);
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_string(s("a_long_string"))?;
+    assert_eq!(String::from("a_long_string"), res);
+
+    let (_, res) = parse_string(s("a_long_string\n"))?;
+    assert_eq!(String::from("a_long_string"), res);
+
+    let (_, res) = parse_string(s("a_long_string another"))?;
+    assert_eq!(String::from("a_long_string"), res);
+
+    let (_, res) = parse_string(s("'a_long_string another' again"))?;
+    assert_eq!(String::from("a_long_string another"), res);
+
+    Ok(())
+}
+
+#[test]
 fn test_parse_global_option() -> Result<(), Box<dyn std::error::Error>> {
     let (_, res) = parse_global_option(s("-depth"))?;
     assert_eq!(GlobalOption::Depth, res);
@@ -197,19 +238,13 @@ fn test_parse_global_option() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn test_parse_test() -> Result<(), Box<dyn std::error::Error>> {
     let (_, res) = parse_test(s("-amin 44"))?;
-    assert_eq!(Test::AccessMin(44), res);
+    assert_eq!(Test::AccessMin(Comparison::Equal(44)), res);
 
-    let (_, res) = parse_test(s("-anewer '/path/to/file with spaces'"))?;
-    assert_eq!(
-        Test::AccessNewer(String::from("/path/to/file with spaces")),
-        res
-    );
+    let (_, res) = parse_test(s("-true"))?;
+    assert_eq!(Test::True, res);
 
-    let (_, res) = parse_test(s("-anewer /path/to/file\n"))?;
-    assert_eq!(Test::AccessNewer(String::from("/path/to/file")), res);
-
-    let (_, res) = parse_test(s("-anewer /path/to/file"))?;
-    assert_eq!(Test::AccessNewer(String::from("/path/to/file")), res);
+    let (_, res) = parse_test(s("-false"))?;
+    assert_eq!(Test::False, res);
 
     Ok(())
 }
