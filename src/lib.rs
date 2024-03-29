@@ -109,4 +109,4 @@ mod ast {
     }
 }
 
-pub use find::{parse_expression, Span};
+pub use find::parse;

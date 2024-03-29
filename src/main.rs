@@ -1,7 +1,5 @@
-use find_parser::parse_expression;
-use find_parser::Span;
+use find_parser::parse;
 use log::LevelFilter;
-use nom_recursive::RecursiveInfo;
 use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,8 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    match parse_expression(Span::new_extra(&args, RecursiveInfo::new())) {
-        Ok((rem, exp)) => println!("{:?} - Remainder: '{}'", exp, rem),
+    match parse(&args) {
+        Ok(exp) => println!("{:?}", exp),
         Err(e) => eprintln!("{}", e.to_string()),
     }
 

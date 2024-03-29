@@ -19,6 +19,7 @@ use nom::IResult;
 use nom::{bytes, character};
 use nom_locate::LocatedSpan;
 use nom_recursive::{recursive_parser, RecursiveInfo};
+use std::rc::Rc;
 
 pub type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
 
@@ -103,8 +104,51 @@ fn parse_test(input: Span) -> IResult<Span, Test> {
     ))(input)
 }
 
+/// We need to split the operator parsing and the expression parsing in two scopes depending on
+/// their precedence. This makes sure that a unary operator (not and precendence) will not glob a
+/// binary expression it is actually a part of, but scanned first. As an example, with one
+/// centralized method of parsing the operators, the lines:
+///
+/// ```txt
+///     ! -uid 201 -a -uid +200
+///     -uid +200 -a ! -uid 201
+/// ```
+///
+/// Are not equivalent for the parser. This is because if we follow the definition of
+/// GlobalOperator(GlobalExpression), Not(And(e1, e2)) is valid while being illegal
+/// in the grammar without a precedence.
+///
+/// We then have:
+/// ```txt
+///     Not(And(Uid(Equal(201)), Uid(GreaterThan(200)))) -> Uid < 200
+///     And(Uid(GreaterThan(200)), Not(Uid(Equal(201)))) -> Uid in {200, 202..}
+/// ```
+///
+/// Splitting the methods transmits the information that the operator was unary
+/// to ensure a valid output
 #[recursive_parser]
-fn parse_operator(s: Span) -> IResult<Span, Operator> {
+fn parse_unary_operator(s: Span) -> IResult<Span, Operator> {
+    alt((
+        map(
+            preceded(
+                tuple((alt((tag("!"), tag("-not"))), character::complete::space0)),
+                parse_unary_expression,
+            ),
+            Operator::Not,
+        ),
+        map(
+            delimited(
+                terminated(tag("("), character::complete::space0),
+                parse_expression,
+                preceded(character::complete::space0, tag(")")),
+            ),
+            Operator::Precedence,
+        ),
+    ))(s)
+}
+
+#[recursive_parser]
+fn parse_binary_operator(s: Span) -> IResult<Span, Operator> {
     alt((
         map(
             separated_pair(
@@ -148,35 +192,45 @@ fn parse_operator(s: Span) -> IResult<Span, Operator> {
                 character::complete::space1,
                 parse_expression,
             ),
-            |(lhs, rhs)| Operator::And(rhs, lhs),
-        ),
-        map(
-            delimited(
-                terminated(tag("("), character::complete::space0),
-                parse_expression,
-                preceded(character::complete::space0, tag(")")),
-            ),
-            Operator::Precedence,
-        ),
-        map(
-            preceded(
-                tuple((alt((tag("!"), tag("-not"))), character::complete::space0)),
-                parse_expression,
-            ),
-            Operator::Not,
+            |(lhs, rhs)| Operator::And(lhs, rhs),
         ),
     ))(s)
 }
 
-pub fn parse_expression(input: Span) -> IResult<Span, Expression> {
+/// This exists to be a less powerful parse_expression if the parent operator was unary
+pub fn parse_unary_expression(s: Span) -> IResult<Span, Expression> {
     alt((
-        map(parse_operator, |val| {
+        map(parse_unary_operator, |val| {
+            let val = Rc::new(val);
+            Expression::Operator(val)
+        }),
+        map(parse_test, Expression::Test),
+        map(parse_global_option, Expression::Global),
+    ))(s)
+}
+
+fn parse_expression(s: Span) -> IResult<Span, Expression> {
+    alt((
+        map(parse_binary_operator, |val| {
+            let val = std::rc::Rc::new(val);
+            Expression::Operator(val)
+        }),
+        map(parse_unary_operator, |val| {
             let val = std::rc::Rc::new(val);
             Expression::Operator(val)
         }),
         map(parse_test, Expression::Test),
         map(parse_global_option, Expression::Global),
-    ))(input)
+    ))(s)
+}
+
+pub fn parse<S: AsRef<str>>(input: S) -> Result<Expression, Box<dyn std::error::Error>> {
+    let clc = String::from(input.as_ref());
+    let wrapped_input = Span::new_extra(&clc, RecursiveInfo::new());
+    match parse_expression(wrapped_input) {
+        Ok((_, exp)) => Ok(exp),
+        Err(e) => Err(e.to_string().into()),
+    }
 }
 
 #[cfg(test)]
@@ -250,32 +304,37 @@ fn test_parse_test() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_parse_operator() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, res) = parse_operator(s("! -true"))?;
+fn test_parse_unary_operator() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_unary_operator(s("! -true"))?;
     assert_eq!(Operator::Not(Expression::Test(Test::True)), res);
 
-    let (_, res) = parse_operator(s("( -true )"))?;
+    let (_, res) = parse_unary_operator(s("( -true )"))?;
     assert_eq!(Operator::Precedence(Expression::Test(Test::True)), res);
 
-    let (_, res) = parse_operator(s("-true -a -true"))?;
+    Ok(())
+}
+
+#[test]
+fn test_parse_binary_operator() -> Result<(), Box<dyn std::error::Error>> {
+    let (_, res) = parse_binary_operator(s("-true -a -true"))?;
     assert_eq!(
         Operator::And(Expression::Test(Test::True), Expression::Test(Test::True)),
         res
     );
 
-    let (_, other_and) = parse_operator(s("-true -and -true"))?;
+    let (_, other_and) = parse_binary_operator(s("-true -and -true"))?;
     assert_eq!(other_and, res);
 
-    let (_, res) = parse_operator(s("-true -o -true"))?;
+    let (_, res) = parse_binary_operator(s("-true -o -true"))?;
     assert_eq!(
         Operator::Or(Expression::Test(Test::True), Expression::Test(Test::True)),
         res
     );
 
-    let (_, other_or) = parse_operator(s("-true -or -true"))?;
+    let (_, other_or) = parse_binary_operator(s("-true -or -true"))?;
     assert_eq!(other_or, res);
 
-    let (_, res) = parse_operator(s("-true, -true"))?;
+    let (_, res) = parse_binary_operator(s("-true, -true"))?;
     assert_eq!(
         Operator::List(Expression::Test(Test::True), Expression::Test(Test::True)),
         res
@@ -297,6 +356,38 @@ fn test_parse_expression() -> Result<(), Box<dyn std::error::Error>> {
         Expression::Operator(std::rc::Rc::new(Operator::Not(Expression::Test(
             Test::True
         )))),
+        res
+    );
+
+    let (_, res) = parse_expression(s("-true -a ! -true"))?;
+    assert_eq!(
+        Expression::Operator(std::rc::Rc::new(Operator::And(
+            Expression::Test(Test::True),
+            Expression::Operator(Rc::new(Operator::Not(Expression::Test(Test::True)))),
+        ))),
+        res
+    );
+
+    let (_, res) = parse_expression(s("! -true -a -true"))?;
+    assert_eq!(
+        Expression::Operator(std::rc::Rc::new(Operator::And(
+            Expression::Operator(Rc::new(Operator::Not(Expression::Test(Test::True)))),
+            Expression::Test(Test::True),
+        ))),
+        res
+    );
+
+    let (_, res) = parse_expression(s("( -name test* -inum +8192 ) -o -user test-user"))?;
+    assert_eq!(
+        Expression::Operator(Rc::new(Operator::Or(
+            Expression::Operator(Rc::new(Operator::Precedence(Expression::Operator(
+                Rc::new(Operator::And(
+                    Expression::Test(Test::Name(String::from("test*"))),
+                    Expression::Test(Test::InodeNumber(Comparison::GreaterThan(8192u32)))
+                ))
+            )))),
+            Expression::Test(Test::User(String::from("test-user")))
+        ))),
         res
     );
 
