@@ -1,22 +1,19 @@
-#![allow(unused_imports)]
 use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, Test};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until1;
 use nom::bytes::complete::take_while1;
+use nom::character;
 use nom::character::complete::u32 as parse_u32;
+use nom::combinator::complete;
 use nom::combinator::map;
-use nom::combinator::recognize;
 use nom::combinator::value;
-use nom::error::Error;
-use nom::multi::many1;
 use nom::sequence::delimited;
 use nom::sequence::preceded;
 use nom::sequence::separated_pair;
 use nom::sequence::terminated;
 use nom::sequence::tuple;
 use nom::IResult;
-use nom::{bytes, character};
 use nom_locate::LocatedSpan;
 use nom_recursive::{recursive_parser, RecursiveInfo};
 use std::rc::Rc;
@@ -26,7 +23,10 @@ pub type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
 macro_rules! parse_type_into {
     ($tag:expr, $target:expr, $parser:expr) => {
         map(
-            preceded(tuple((tag($tag), character::complete::space1)), $parser),
+            preceded(
+                tuple((tag($tag), character::complete::space1)),
+                complete($parser),
+            ),
             $target,
         )
     };
@@ -55,6 +55,21 @@ fn parse_global_option(input: Span) -> IResult<Span, GlobalOption> {
         value(GlobalOption::Depth, tag("-depth")),
         parse_type_into!("-mindepth", GlobalOption::MinDepth, parse_u32),
         parse_type_into!("-maxdepth", GlobalOption::MaxDepth, parse_u32),
+    ))(input)
+}
+
+fn parse_action(input: Span) -> IResult<Span, Action> {
+    alt((
+        parse_type_into!("-fls", Action::FileList, parse_string),
+        parse_type_into!("-fprint", Action::FilePrint, parse_string),
+        parse_type_into!("-fprint0", Action::FilePrintNull, parse_string),
+        //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
+        value(Action::List, tag("-ls")),
+        value(Action::Print, tag("-print")),
+        value(Action::PrintNull, tag("-print0")),
+        parse_type_into!("-printf", Action::PrintFormatted, parse_string),
+        value(Action::Prune, tag("-prune")),
+        value(Action::Quit, tag("-quit")),
     ))(input)
 }
 
@@ -209,6 +224,8 @@ pub fn parse_unary_expression(s: Span) -> IResult<Span, Expression> {
     ))(s)
 }
 
+/// We make sure to parse binary operators first, as failing to do so may return lead to a partial
+/// parse
 fn parse_expression(s: Span) -> IResult<Span, Expression> {
     alt((
         map(parse_binary_operator, |val| {
@@ -220,6 +237,7 @@ fn parse_expression(s: Span) -> IResult<Span, Expression> {
             Expression::Operator(val)
         }),
         map(parse_test, Expression::Test),
+        map(parse_action, Expression::Action),
         map(parse_global_option, Expression::Global),
     ))(s)
 }
@@ -228,6 +246,9 @@ pub fn parse<S: AsRef<str>>(input: S) -> Result<Expression, Box<dyn std::error::
     let clc = String::from(input.as_ref());
     let wrapped_input = Span::new_extra(&clc, RecursiveInfo::new());
     match parse_expression(wrapped_input) {
+        Ok((rem, _)) if rem.len() > 0 => {
+            Err(format!("Failed to parse command line: {}", rem).into())
+        }
         Ok((_, exp)) => Ok(exp),
         Err(e) => Err(e.to_string().into()),
     }
