@@ -14,6 +14,12 @@ use winnow::{
     token::{literal, one_of, take_until, take_while},
 };
 
+macro_rules! parse_type_into {
+    ($tag:expr, $target:expr, $parser:expr) => {
+        preceded(terminated($tag, multispace1), cut_err($parser)).map($target)
+    };
+}
+
 fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
     digit1
         .try_map(|digit_str: &str| digit_str.parse::<u32>())
@@ -67,8 +73,7 @@ fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     .parse_next(input)
 }
 
-/*
-fn parse_test(input: Span) -> IResult<Span, Test> {
+pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     alt((
         alt((
             parse_type_into!("-amin", Test::AccessMin, parse_comp),
@@ -77,9 +82,9 @@ fn parse_test(input: Span) -> IResult<Span, Test> {
             parse_type_into!("-cmin", Test::ChangeMin, parse_comp),
             parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
             parse_type_into!("-ctime", Test::ChangeTime, parse_comp),
-            value(Test::Empty, tag("-empty")),
-            value(Test::Executable, tag("-executable")),
-            value(Test::False, tag("-false")),
+            literal("-empty").value(Test::Empty),
+            literal("-executable").value(Test::Executable),
+            literal("-false").value(Test::False),
             parse_type_into!("-fstype", Test::FsType, parse_string),
             parse_type_into!("-gid", Test::GroupId, parse_u32),
             parse_type_into!("-group", Test::Group, parse_string),
@@ -95,25 +100,27 @@ fn parse_test(input: Span) -> IResult<Span, Test> {
         )),
         alt((
             parse_type_into!("-name", Test::Name, parse_string),
-            value(Test::NoGroup, tag("-nouser")),
-            value(Test::NoUser, tag("-nogroup")),
+            literal("-nouser").value(Test::NoGroup),
+            literal("-nogroup").value(Test::NoUser),
             parse_type_into!("-path", Test::Path, parse_string),
             parse_type_into!("-perm", Test::Perm, parse_string),
             parse_type_into!("-perm+", Test::PermAtLeast, parse_string),
             parse_type_into!("-perm/", Test::PermAny, parse_string),
-            value(Test::Readable, tag("-readable")),
+            literal("-readable").value(Test::Readable),
             parse_type_into!("-regex", Test::Regex, parse_string),
             parse_type_into!("-samefile", Test::Samefile, parse_string),
             parse_type_into!("-size", Test::Size, parse_string),
-            value(Test::True, tag("-true")),
+            literal("-true").value(Test::True),
             parse_type_into!("-type", Test::Type, parse_string),
             parse_type_into!("-uid", Test::UserId, parse_u32),
             parse_type_into!("-user", Test::User, parse_string),
-            value(Test::Writable, tag("-writable")),
+            literal("-writable").value(Test::Writable),
         )),
-    ))(input)
+    ))
+    .parse_next(input)
 }
 
+/*
 /// We need to split the operator parsing and the expression parsing in two scopes depending on
 /// their precedence. This makes sure that a unary operator (not and precendence) will not glob a
 /// binary expression it is actually a part of, but scanned first. As an example, with one
@@ -336,21 +343,21 @@ fn test_parse_global_option() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/*
 #[test]
 fn test_parse_test() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, res) = parse_test(s("-amin 44"))?;
+    let res = parse_test(&mut "-amin 44").unwrap();
     assert_eq!(Test::AccessMin(Comparison::Equal(44)), res);
 
-    let (_, res) = parse_test(s("-true"))?;
+    let res = parse_test(&mut "-true").unwrap();
     assert_eq!(Test::True, res);
 
-    let (_, res) = parse_test(s("-false"))?;
+    let res = parse_test(&mut "-false").unwrap();
     assert_eq!(Test::False, res);
 
     Ok(())
 }
 
+/*
 #[test]
 fn test_parse_unary_operator() -> Result<(), Box<dyn std::error::Error>> {
     let res = parse_operator(&mut "! -depth").unwrap();
