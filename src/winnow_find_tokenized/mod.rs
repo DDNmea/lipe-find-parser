@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, Test};
+use crate::ast::{Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, Test};
 use crate::winnow_find::parse_test;
 use std::rc::Rc;
 use winnow::{
@@ -58,49 +58,46 @@ pub fn token(input: &mut &str) -> PResult<Token> {
     .parse_next(input)
 }
 
-fn expr(input: &mut &[Token]) -> PResult<Expression> {
+fn expr(input: &mut &[Token]) -> PResult<Exp> {
     let init = or.parse_next(input)?;
 
     repeat(0.., (one_of(Token::Comma), or))
         .fold(
             move || init.clone(),
-            |acc, (_, val): (Token, Expression)| {
-                Expression::Operator(Rc::new(Operator::List(acc, val)))
-            },
+            |acc, (_, val): (Token, Exp)| Exp::Operator(Rc::new(Ope::List(acc, val))),
         )
         .parse_next(input)
 }
 
-fn or(input: &mut &[Token]) -> PResult<Expression> {
+fn or(input: &mut &[Token]) -> PResult<Exp> {
     let init = and.parse_next(input)?;
 
-    repeat(0.., (one_of(Token::Or), and))
+    repeat(0.., preceded(one_of(Token::Or), and))
         .fold(
             move || init.clone(),
-            |acc, (_, val): (Token, Expression)| {
-                Expression::Operator(Rc::new(Operator::Or(acc, val)))
-            },
+            |acc, val: Exp| Exp::Operator(Rc::new(Ope::Or(acc, val))),
         )
         .parse_next(input)
 }
 
-fn and(input: &mut &[Token]) -> PResult<Expression> {
+fn and(input: &mut &[Token]) -> PResult<Exp> {
     let init = atom.parse_next(input)?;
 
-    repeat(0.., (one_of(Token::And), atom))
+    // awful awful awful readability but here we check for (Token::And, atom) first. In case we are
+    // not so lucky try for atom again, at which point we have two atoms together and this means we
+    // are blessed with the presence of an implicit and.
+    repeat(0.., alt((preceded(one_of(Token::And), atom), atom)))
         .fold(
             move || init.clone(),
-            |acc, (_, val): (Token, Expression)| {
-                Expression::Operator(Rc::new(Operator::And(acc, val)))
-            },
+            |acc, val: Exp| Exp::Operator(Rc::new(Ope::And(acc, val))),
         )
         .parse_next(input)
 }
 
-fn atom(input: &mut &[Token]) -> PResult<Expression> {
+fn atom(input: &mut &[Token]) -> PResult<Exp> {
     alt((
         one_of(|t| matches!(t, Token::Test(_))).map(|t| match t {
-            Token::Test(v) => Expression::Test(v),
+            Token::Test(v) => Exp::Test(v),
             _ => unreachable!(),
         }),
         parens,
@@ -108,12 +105,12 @@ fn atom(input: &mut &[Token]) -> PResult<Expression> {
     .parse_next(input)
 }
 
-fn parens(input: &mut &[Token]) -> PResult<Expression> {
+fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), expr, one_of(Token::RParen)).parse_next(input)
 }
 
 #[allow(dead_code)]
-pub fn parse(input: &mut &str) -> PResult<Expression> {
+pub fn parse(input: &mut &str) -> PResult<Exp> {
     let tokens = lex.parse_next(input)?;
     expr.parse_next(&mut tokens.as_slice())
 }
@@ -167,46 +164,65 @@ fn test_lex() {
 #[test]
 fn test_parse_test() {
     let res = parse(&mut "-amin 44");
-    assert_eq!(
-        Ok(Expression::Test(Test::AccessMin(Comparison::Equal(44)))),
-        res
-    );
+    assert_eq!(Ok(Exp::Test(Test::AccessMin(Comparison::Equal(44)))), res);
 
     let res = parse(&mut "-true");
-    assert_eq!(Ok(Expression::Test(Test::True)), res);
+    assert_eq!(Ok(Exp::Test(Test::True)), res);
 
     let res = parse(&mut "-false");
-    assert_eq!(Ok(Expression::Test(Test::False)), res);
+    assert_eq!(Ok(Exp::Test(Test::False)), res);
 }
 
 #[test]
 fn test_parse_operator() {
     let res = parse(&mut "-true -o -false");
     assert_eq!(
-        Ok(Expression::Operator(Rc::new(Operator::Or(
-            Expression::Test(Test::True),
-            Expression::Test(Test::False)
+        Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Test(Test::True),
+            Exp::Test(Test::False)
         )))),
         res
     );
 
     let res = parse(&mut "-true -a -false");
     assert_eq!(
-        Ok(Expression::Operator(Rc::new(Operator::And(
-            Expression::Test(Test::True),
-            Expression::Test(Test::False)
+        Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Test(Test::True),
+            Exp::Test(Test::False)
         )))),
         res
     );
 
+    // Test operator precedence
     let res = parse(&mut "-true -a -false -o -name test");
     assert_eq!(
-        Ok(Expression::Operator(Rc::new(Operator::Or(
-            Expression::Operator(Rc::new(Operator::And(
-                Expression::Test(Test::True),
-                Expression::Test(Test::False)
+        Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::And(
+                Exp::Test(Test::True),
+                Exp::Test(Test::False)
             ))),
-            Expression::Test(Test::Name(String::from("test")))
+            Exp::Test(Test::Name(String::from("test")))
+        )))),
+        res
+    );
+
+    let res = parse(&mut "-true -a (-false -o -name test)");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Test(Test::True),
+            Exp::Operator(Rc::new(Ope::Or(
+                Exp::Test(Test::False),
+                Exp::Test(Test::Name(String::from("test"))),
+            ))),
+        )))),
+        res
+    );
+
+    let res = parse(&mut "-true -false");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Test(Test::True),
+            Exp::Test(Test::False)
         )))),
         res
     );
