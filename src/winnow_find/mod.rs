@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, Test};
+use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, PositionalOption, Test};
 use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
@@ -44,7 +44,7 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
     .parse_next(input)
 }
 
-fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
+pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
     alt((
         literal("-depth").value(GlobalOption::Depth),
         preceded(terminated("-maxdepth", multispace1), cut_err(parse_u32))
@@ -55,7 +55,13 @@ fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
     .parse_next(input)
 }
 
-fn parse_action(input: &mut &'_ str) -> PResult<Action> {
+pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
+    literal("nope")
+        .value(PositionalOption::XDev)
+        .parse_next(input)
+}
+
+pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     alt((
         preceded(terminated("-fls", multispace1), cut_err(parse_string)).map(Action::FileList),
         preceded(terminated("-fprint", multispace1), cut_err(parse_string)).map(Action::FilePrint),
@@ -63,8 +69,8 @@ fn parse_action(input: &mut &'_ str) -> PResult<Action> {
             .map(Action::FilePrintNull),
         //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
         literal("-ls").value(Action::List),
-        literal("-print").value(Action::Print),
-        literal("-print0").value(Action::PrintNull),
+        terminated("-print", multispace0).value(Action::Print),
+        terminated("-print0", multispace0).value(Action::PrintNull),
         preceded(terminated("-printf", multispace1), cut_err(parse_string))
             .map(Action::PrintFormatted),
         literal("-prune").value(Action::Prune),

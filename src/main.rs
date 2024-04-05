@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
-        .with_level(LevelFilter::Info)
+        .with_level(LevelFilter::Debug)
         .init()
         .unwrap();
 
@@ -17,10 +17,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect::<Vec<_>>()
         .join(" ");
+    log::debug!("Args: \"{}\"", args);
 
-    let exp = parse(&args)?;
-
-    println!("{:?}", exp);
+    let mut input = args.as_str();
+    match parse(&mut input) {
+        Ok(exp) => println!("{:#?}", exp),
+        Err(e) => eprintln!("{}", e),
+    }
 
     Ok(())
 }

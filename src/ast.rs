@@ -84,7 +84,9 @@ pub enum GlobalOption {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum PositionalOption {}
+pub enum PositionalOption {
+    XDev,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {

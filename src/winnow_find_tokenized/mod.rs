@@ -1,7 +1,9 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use crate::ast::{Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, Test};
-use crate::winnow_find::parse_test;
+use crate::ast::{
+    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Test,
+};
+use crate::winnow_find::{parse_action, parse_global_option, parse_positional, parse_test};
 use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
@@ -24,7 +26,9 @@ pub enum Token {
     Not,
     Comma,
     Test(Test),
-    //Action(Action),
+    Action(Action),
+    Global(GlobalOption),
+    Positional(PositionalOption),
 }
 
 impl winnow::stream::ContainsToken<Token> for Token {
@@ -45,7 +49,6 @@ pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
     preceded(multispace0, repeat(1.., terminated(token, multispace0))).parse_next(input)
 }
 
-// We parse the command line to
 pub fn token(input: &mut &str) -> PResult<Token> {
     alt((
         literal("(").value(Token::LParen),
@@ -55,6 +58,9 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         literal(",").value(Token::Comma),
         terminated(alt((literal("-a"), literal("-and"))), multispace1).value(Token::And),
         parse_test.map(Token::Test),
+        parse_action.map(Token::Action),
+        parse_global_option.map(Token::Global),
+        parse_positional.map(Token::Positional),
     ))
     .parse_next(input)
 }
@@ -97,8 +103,17 @@ fn and(input: &mut &[Token]) -> PResult<Exp> {
 
 fn atom(input: &mut &[Token]) -> PResult<Exp> {
     alt((
-        one_of(|t| matches!(t, Token::Test(_))).map(|t| match t {
+        one_of(|t| {
+            matches!(
+                t,
+                Token::Test(_) | Token::Action(_) | Token::Global(_) | Token::Positional(_)
+            )
+        })
+        .map(|t| match t {
             Token::Test(v) => Exp::Test(v),
+            Token::Action(v) => Exp::Action(v),
+            Token::Global(v) => Exp::Global(v),
+            Token::Positional(v) => Exp::Positional(v),
             _ => unreachable!(),
         }),
         not,
@@ -120,6 +135,7 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
 #[allow(dead_code)]
 pub fn parse(input: &mut &str) -> PResult<Exp> {
     let tokens = lex.parse_next(input)?;
+    log::debug!("Tokens: {:#?}", tokens);
     list.parse_next(&mut tokens.as_slice())
 }
 

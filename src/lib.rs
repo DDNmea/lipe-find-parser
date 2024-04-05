@@ -3,4 +3,4 @@ mod nom_find;
 mod winnow_find;
 mod winnow_find_tokenized;
 
-pub use nom_find::parse;
+pub use winnow_find_tokenized::parse;

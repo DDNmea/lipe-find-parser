@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, Test};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
