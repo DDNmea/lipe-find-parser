@@ -101,9 +101,16 @@ fn atom(input: &mut &[Token]) -> PResult<Exp> {
             Token::Test(v) => Exp::Test(v),
             _ => unreachable!(),
         }),
+        not,
         parens,
     ))
     .parse_next(input)
+}
+
+fn not(input: &mut &[Token]) -> PResult<Exp> {
+    preceded(one_of(Token::Not), atom)
+        .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
+        .parse_next(input)
 }
 
 fn parens(input: &mut &[Token]) -> PResult<Exp> {
@@ -182,6 +189,12 @@ fn test_parse_test() {
 
 #[test]
 fn test_parse_operator() {
+    let res = parse(&mut "! -true");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True))))),
+        res
+    );
+
     let res = parse(&mut "-true -o -false");
     assert_eq!(
         Ok(Exp::Operator(Rc::new(Ope::Or(
@@ -200,7 +213,18 @@ fn test_parse_operator() {
         res
     );
 
-    // Test operator precedence
+    let res = parse(&mut "-true -false");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Test(Test::True),
+            Exp::Test(Test::False)
+        )))),
+        res
+    );
+}
+
+#[test]
+fn test_parse_operator_precedence() {
     // and has a higher precedence than or, so we test this is reflected in the AST
     let res = parse(&mut "-true -a -false -o -name test");
     assert_eq!(
@@ -238,12 +262,32 @@ fn test_parse_operator() {
         res
     );
 
-    let res = parse(&mut "-true -false");
+    let res = parse(&mut "-true -a ! -false");
     assert_eq!(
         Ok(Exp::Operator(Rc::new(Ope::And(
             Exp::Test(Test::True),
-            Exp::Test(Test::False)
+            Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::False)))),
         )))),
+        res
+    );
+
+    let res = parse(&mut "! -true -o -false");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True)))),
+            Exp::Test(Test::False),
+        )))),
+        res
+    );
+
+    let res = parse(&mut "! ( -true -o -false )");
+    #[rustfmt::skip]
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::Not(
+            Exp::Operator(Rc::new(Ope::Or(
+                Exp::Test(Test::True),
+                Exp::Test(Test::False)
+        ))))))),
         res
     );
 }
