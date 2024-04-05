@@ -45,6 +45,7 @@ pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
     preceded(multispace0, repeat(1.., terminated(token, multispace0))).parse_next(input)
 }
 
+// We parse the command line to
 pub fn token(input: &mut &str) -> PResult<Token> {
     alt((
         literal("(").value(Token::LParen),
@@ -58,7 +59,7 @@ pub fn token(input: &mut &str) -> PResult<Token> {
     .parse_next(input)
 }
 
-fn expr(input: &mut &[Token]) -> PResult<Exp> {
+fn list(input: &mut &[Token]) -> PResult<Exp> {
     let init = or.parse_next(input)?;
 
     repeat(0.., (one_of(Token::Comma), or))
@@ -75,7 +76,7 @@ fn or(input: &mut &[Token]) -> PResult<Exp> {
     repeat(0.., preceded(one_of(Token::Or), and))
         .fold(
             move || init.clone(),
-            |acc, val: Exp| Exp::Operator(Rc::new(Ope::Or(acc, val))),
+            |acc, val| Exp::Operator(Rc::new(Ope::Or(acc, val))),
         )
         .parse_next(input)
 }
@@ -89,7 +90,7 @@ fn and(input: &mut &[Token]) -> PResult<Exp> {
     repeat(0.., alt((preceded(one_of(Token::And), atom), atom)))
         .fold(
             move || init.clone(),
-            |acc, val: Exp| Exp::Operator(Rc::new(Ope::And(acc, val))),
+            |acc, val| Exp::Operator(Rc::new(Ope::And(acc, val))),
         )
         .parse_next(input)
 }
@@ -106,13 +107,13 @@ fn atom(input: &mut &[Token]) -> PResult<Exp> {
 }
 
 fn parens(input: &mut &[Token]) -> PResult<Exp> {
-    delimited(one_of(Token::LParen), expr, one_of(Token::RParen)).parse_next(input)
+    delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
 
 #[allow(dead_code)]
 pub fn parse(input: &mut &str) -> PResult<Exp> {
     let tokens = lex.parse_next(input)?;
-    expr.parse_next(&mut tokens.as_slice())
+    list.parse_next(&mut tokens.as_slice())
 }
 
 #[test]
@@ -171,6 +172,12 @@ fn test_parse_test() {
 
     let res = parse(&mut "-false");
     assert_eq!(Ok(Exp::Test(Test::False)), res);
+
+    let res = parse(&mut "-amin");
+    assert!(res.is_err());
+
+    let res = parse(&mut "-amin test");
+    assert!(res.is_err());
 }
 
 #[test]
@@ -194,6 +201,7 @@ fn test_parse_operator() {
     );
 
     // Test operator precedence
+    // and has a higher precedence than or, so we test this is reflected in the AST
     let res = parse(&mut "-true -a -false -o -name test");
     assert_eq!(
         Ok(Exp::Operator(Rc::new(Ope::Or(
@@ -202,6 +210,18 @@ fn test_parse_operator() {
                 Exp::Test(Test::False)
             ))),
             Exp::Test(Test::Name(String::from("test")))
+        )))),
+        res
+    );
+
+    let res = parse(&mut "-true -o -false -a -name test");
+    assert_eq!(
+        Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Test(Test::True),
+            Exp::Operator(Rc::new(Ope::And(
+                Exp::Test(Test::False),
+                Exp::Test(Test::Name(String::from("test"))),
+            ))),
         )))),
         res
     );
