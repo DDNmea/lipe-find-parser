@@ -105,3 +105,84 @@ pub enum Expression {
     Global(GlobalOption),
     Positional(PositionalOption),
 }
+
+impl Expression {
+    pub fn str_comps<'a>(&'a self) -> Vec<&'a String> {
+        let mut out = vec![];
+        match self {
+            Expression::Test(parameter) => {
+                if let Test::AccessNewer(s)
+                | Test::ChangeNewer(s)
+                | Test::FsType(s)
+                | Test::Group(s)
+                | Test::InsensitiveLinkName(s)
+                | Test::InsensitiveName(s)
+                | Test::InsensitivePath(s)
+                | Test::InsensitiveRegex(s)
+                | Test::ModifyNewer(s)
+                | Test::Name(s)
+                | Test::Path(s)
+                | Test::Perm(s)
+                | Test::PermAtLeast(s)
+                | Test::PermAny(s)
+                | Test::Regex(s)
+                | Test::Samefile(s)
+                | Test::Size(s)
+                | Test::Type(s)
+                | Test::User(s) = parameter
+                {
+                    out.push(s)
+                }
+            }
+
+            Expression::Operator(op) => match op.as_ref() {
+                Operator::Precedence(e) | Operator::Not(e) => out.extend(e.str_comps()),
+                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
+                    out.extend(e1.str_comps());
+                    out.extend(e2.str_comps());
+                }
+            },
+            _ => (),
+        }
+
+        out
+    }
+
+    pub fn output_files<'a>(&'a self) -> Vec<&'a String> {
+        let mut out = vec![];
+        match self {
+            Expression::Action(act) => match act {
+                Action::FileList(f) | Action::FilePrint(f) | Action::FilePrintNull(f) => {
+                    out.push(f)
+                }
+                Action::FilePrintFormatted(f, _) => out.push(f),
+                _ => (),
+            },
+
+            Expression::Operator(op) => match op.as_ref() {
+                Operator::Precedence(e) | Operator::Not(e) => out.extend(e.output_files()),
+                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
+                    out.extend(e1.output_files());
+                    out.extend(e2.output_files());
+                }
+            },
+            _ => (),
+        }
+
+        out
+    }
+
+    pub fn action(&self) -> bool {
+        match self {
+            Expression::Action(_) => true,
+
+            Expression::Operator(op) => match op.as_ref() {
+                Operator::Precedence(e) | Operator::Not(e) => e.action(),
+                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
+                    e1.action() || e2.action()
+                }
+            },
+            _ => false,
+        }
+    }
+}

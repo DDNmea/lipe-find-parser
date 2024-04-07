@@ -135,7 +135,7 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
 #[allow(dead_code)]
 pub fn parse(input: &mut &str) -> PResult<Exp> {
     let tokens = lex.parse_next(input)?;
-    log::debug!("Tokens: {:#?}", tokens);
+    log::debug!("Tokens: {:?}", tokens);
     list.parse_next(&mut tokens.as_slice())
 }
 
