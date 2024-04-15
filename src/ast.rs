@@ -27,7 +27,7 @@ pub enum Test {
     Executable,
     False,
     FsType(String),
-    GroupId(u32),
+    GroupId(Comparison),
     Group(String),
     InsensitiveLinkName(String), //TODO Pattern
     InsensitiveName(String),     //TODO Pattern
@@ -52,7 +52,7 @@ pub enum Test {
     Size(String),
     True,
     Type(String),
-    UserId(u32),
+    UserId(Comparison),
     User(String),
     Writable,
     //XType(Type)
@@ -267,7 +267,7 @@ impl Scheme for Operator {
 }
 
 impl Scheme for Action {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) {
         match self {
             Action::Print => buffer.push_str("(print-relative-path)"),
             _ => todo!(),
@@ -282,7 +282,7 @@ impl Scheme for GlobalOption {
 }
 
 impl Scheme for PositionalOption {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) {
         todo!()
     }
 }
