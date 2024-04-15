@@ -227,6 +227,7 @@ impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
             Test::False => buffer.push_str("#f"),
+            Test::True => buffer.push_str("#t"),
             Test::Name(s) => {
                 let match_ref = ctx.register_streq(s);
                 buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
@@ -267,7 +268,10 @@ impl Scheme for Operator {
 
 impl Scheme for Action {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
-        todo!()
+        match self {
+            Action::Print => buffer.push_str("(print-relative-path)"),
+            _ => todo!(),
+        }
     }
 }
 
@@ -287,6 +291,7 @@ impl Scheme for Expression {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
             Expression::Test(t) => t.compile(buffer, ctx),
+            Expression::Action(a) => a.compile(buffer, ctx),
             Expression::Operator(o) => o.as_ref().compile(buffer, ctx),
             _ => todo!(),
         }
@@ -294,14 +299,49 @@ impl Scheme for Expression {
 }
 
 impl SchemeManager {
-    fn compile(&self, buffer: &mut String) {
+    fn to_scheme(&self) -> String {
+        let mut buffer = String::new();
         for (index, string) in self.strings.iter().enumerate() {
             buffer.push_str(&format!(
                 "(%lf3:match:{} (lambda (%lf3:str:0) (streq? \"{}\" %lf3:str:0)))",
-                index, string
+                index + 1,
+                string
             ));
         }
+        buffer
     }
+}
+
+pub fn compile<S: AsRef<str>>(exp: &Expression, path: S) -> String {
+    let mut buffer = String::new();
+    let mut manager = SchemeManager::default();
+
+    if !exp.action() {
+        let wrapper = Expression::Operator(Rc::new(Operator::And(
+            exp.clone(),
+            Expression::Action(Action::Print),
+        )));
+
+        wrapper.compile(&mut buffer, &mut manager);
+    } else {
+        exp.compile(&mut buffer, &mut manager);
+    }
+
+    format!(
+        "(let * ({})
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        \"{}\"
+        (lipe-getopt-client-mount-path)
+        (lambda () {})
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () #t)))",
+        manager.to_scheme(),
+        path.as_ref(),
+        buffer,
+    )
 }
 
 #[test]
