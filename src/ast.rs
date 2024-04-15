@@ -120,7 +120,11 @@ macro_rules! format_cmp {
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SchemeManager {
-    strings: Vec<String>,
+    init: Vec<String>,
+    fini: Vec<String>,
+
+    var_index: usize,
+    vars: Vec<String>,
 }
 
 impl SchemeManager {
@@ -128,12 +132,62 @@ impl SchemeManager {
     /// recorded strings and associate a unique index to each. They will correspond to match
     /// functions in the final LISP code.
     fn register_streq<S: AsRef<str>>(&mut self, cmp: S) -> usize {
-        match self.strings.iter().position(|x| x == cmp.as_ref()) {
-            Some(index) => index + 1,
-            None => {
-                self.strings.push(cmp.as_ref().to_string());
-                self.strings.len()
-            }
+        self.vars.push(format!(
+            "(%lf3:match:{} (lambda (%lf3:str:{}) (streq? \"{}\" %lf3:str:{})))",
+            self.var_index + 1,
+            self.var_index,
+            cmp.as_ref(),
+            self.var_index
+        ));
+
+        self.var_index += 2;
+        return self.var_index - 1;
+    }
+
+    fn register_file<S: AsRef<str>>(&mut self, cmp: S) -> usize {
+        self.vars.push(format!(
+            "(%lf3:port:{} (open-file \"{}\" \"w\"))",
+            self.var_index,
+            cmp.as_ref(),
+        ));
+        self.vars
+            .push(format!("(%lf3:mutex:{} (make-mutex))", self.var_index + 1));
+        self.vars.push(format!(
+            "(%lf3:print:{} (make-printer %lf3:port:{}, %lf3:mutex:{} #\\x0a))",
+            self.var_index + 2,
+            self.var_index,
+            self.var_index + 1
+        ));
+
+        self.var_index += 3;
+        return self.var_index - 1;
+    }
+
+    fn register_init<S: AsRef<str>>(&mut self, step: S) {
+        self.init.push(step.as_ref().to_string())
+    }
+
+    fn register_fini<S: AsRef<str>>(&mut self, step: S) {
+        self.fini.push(step.as_ref().to_string())
+    }
+
+    fn vars(&self) -> String {
+        self.vars.join(" ")
+    }
+
+    fn init(&self) -> String {
+        if self.init.is_empty() {
+            String::from("#t")
+        } else {
+            self.init.join(" ")
+        }
+    }
+
+    fn fini(&self) -> String {
+        if self.fini.is_empty() {
+            String::from("#t")
+        } else {
+            self.fini.join(" ")
         }
     }
 }
@@ -246,12 +300,14 @@ impl Scheme for Operator {
             Operator::And(lhs, rhs) | Operator::List(lhs, rhs) => {
                 buffer.push_str("(and ");
                 lhs.compile(buffer, ctx);
+                buffer.push_str(" ");
                 rhs.compile(buffer, ctx);
                 buffer.push_str(")");
             }
             Operator::Or(lhs, rhs) => {
                 buffer.push_str("(or ");
                 lhs.compile(buffer, ctx);
+                buffer.push_str(" ");
                 rhs.compile(buffer, ctx);
                 buffer.push_str(")");
             }
@@ -267,9 +323,13 @@ impl Scheme for Operator {
 }
 
 impl Scheme for Action {
-    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
             Action::Print => buffer.push_str("(print-relative-path)"),
+            Action::FilePrint(dest) => {
+                let var_id = ctx.register_file(dest);
+                buffer.push_str(&format!("(call-with-relative-path %lf3:print:{})", var_id))
+            }
             _ => todo!(),
         }
     }
@@ -298,20 +358,6 @@ impl Scheme for Expression {
     }
 }
 
-impl SchemeManager {
-    fn to_scheme(&self) -> String {
-        let mut buffer = String::new();
-        for (index, string) in self.strings.iter().enumerate() {
-            buffer.push_str(&format!(
-                "(%lf3:match:{} (lambda (%lf3:str:0) (streq? \"{}\" %lf3:str:0)))",
-                index + 1,
-                string
-            ));
-        }
-        buffer
-    }
-}
-
 pub fn compile<S: AsRef<str>>(exp: &Expression, path: S) -> String {
     let mut buffer = String::new();
     let mut manager = SchemeManager::default();
@@ -330,28 +376,18 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, path: S) -> String {
     format!(
         "(let * ({})
   (dynamic-wind
-    (lambda () #t)
+    (lambda () {})
     (lambda () (lipe-scan
         \"{}\"
         (lipe-getopt-client-mount-path)
         (lambda () {})
         (lipe-getopt-required-attrs)
         (lipe-getopt-thread-count)))
-    (lambda () #t)))",
-        manager.to_scheme(),
+    (lambda () {})))",
+        manager.vars(),
+        manager.init(),
         path.as_ref(),
         buffer,
+        manager.fini(),
     )
-}
-
-#[test]
-fn test_scheme_manager_strings() {
-    let mut m = SchemeManager::default();
-
-    let index1 = m.register_streq("test*");
-    let index2 = m.register_streq("*.txt");
-    let index3 = m.register_streq("test*");
-
-    assert!(index1 != index2);
-    assert_eq!(index1, index3);
 }
