@@ -150,6 +150,8 @@ impl SchemeManager {
             self.var_index,
             cmp.as_ref(),
         ));
+        self.fini
+            .push(format!("(close-port %lf3:port:{})", self.var_index));
         self.vars
             .push(format!("(%lf3:mutex:{} (make-mutex))", self.var_index + 1));
         self.vars.push(format!(
