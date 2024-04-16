@@ -35,15 +35,15 @@ mod parsing {
     #[test]
     fn test_parse_global_option() {
         let (opt, exp) = parse("-depth").unwrap();
-        assert_eq!(vec![GlobalOption::Depth], opt);
+        assert!(opt.depth);
         assert_eq!(Exp::Test(Test::True), exp);
 
         let (opt, exp) = parse("-maxdepth 44").unwrap();
-        assert_eq!(vec![GlobalOption::MaxDepth(44)], opt);
+        assert_eq!(44u32, opt.max_depth);
         assert_eq!(Exp::Test(Test::True), exp);
 
         let (opt, exp) = parse("-mindepth 44").unwrap();
-        assert_eq!(vec![GlobalOption::MinDepth(44)], opt);
+        assert_eq!(44u32, opt.min_depth);
         assert_eq!(Exp::Test(Test::True), exp);
 
         let res = parse("-maxdepth -44");

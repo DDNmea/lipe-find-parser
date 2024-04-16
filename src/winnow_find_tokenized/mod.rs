@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use crate::ast::{
-    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Test,
+    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption,
+    RunOptions, Test,
 };
 use std::rc::Rc;
 use winnow::{
@@ -281,17 +282,20 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
 
-pub fn parse<S: AsRef<str>>(input: S) -> PResult<(Vec<GlobalOption>, Exp)> {
+pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
     // Get a reference to the input to modify while parsing
     let mut input: &str = input.as_ref();
 
     // Parse all the global options at the start of the command line
-    let mut globals = preceded(
+    let mut globals = RunOptions::default();
+    preceded(
         multispace0,
         repeat(0.., terminated(parse_global_option, multispace0)),
     )
     .parse_next(&mut input)
-    .unwrap_or(vec![]);
+    .unwrap_or(vec![])
+    .iter()
+    .for_each(|g| globals.update(g));
 
     // Tokenize the rest of the command line. If empty, we had only options and we insert True
     let tokens = if input.is_empty() {
@@ -311,7 +315,7 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(Vec<GlobalOption>, Exp)> {
                     "Found misplaced global option in command line: option {:?} at logical position {i}",
                     v
                 );
-                globals.push(v);
+                globals.update(&v);
                 Token::Test(Test::True)
             }
             token => token,

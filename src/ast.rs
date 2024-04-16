@@ -78,6 +78,8 @@ pub enum Action {
     Quit,
 }
 
+/// Options affecting the behaviour of the scan. They are expected to be present before any other
+/// options on the command line but will only generate a warning if improperly declared.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GlobalOption {
     Depth,
@@ -361,6 +363,37 @@ impl Scheme for Expression {
             Expression::Action(a) => a.compile(buffer, ctx),
             Expression::Operator(o) => o.as_ref().compile(buffer, ctx),
             _ => todo!(),
+        }
+    }
+}
+
+/// Convenience struct to collect the options passed on the command line
+#[derive(Debug)]
+pub struct RunOptions {
+    pub depth: bool,
+    pub max_depth: u32,
+    pub min_depth: u32,
+    pub threads: u32,
+}
+
+impl Default for RunOptions {
+    fn default() -> Self {
+        RunOptions {
+            depth: false,
+            max_depth: u32::max_value(),
+            min_depth: u32::min_value(),
+            threads: 4,
+        }
+    }
+}
+
+impl RunOptions {
+    pub fn update(&mut self, option: &GlobalOption) {
+        match option {
+            GlobalOption::Depth => self.depth = true,
+            GlobalOption::MaxDepth(value) => self.max_depth = *value,
+            GlobalOption::MinDepth(value) => self.min_depth = *value,
+            GlobalOption::Threads(value) => self.threads = *value,
         }
     }
 }
