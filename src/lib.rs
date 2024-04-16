@@ -2,6 +2,7 @@ mod ast;
 mod nom_find;
 mod winnow_find_tokenized;
 
+pub use ast::compile;
 pub use winnow_find_tokenized::parse;
 
 #[cfg(test)]
@@ -15,14 +16,14 @@ mod parsing {
 
     #[test]
     fn test_parse_test() {
-        let res = parse("-amin 44");
-        assert_eq!(Ok(Exp::Test(Test::AccessMin(Comparison::Equal(44)))), res);
+        let (_, exp) = parse("-amin 44").unwrap();
+        assert_eq!(Exp::Test(Test::AccessMin(Comparison::Equal(44))), exp);
 
-        let res = parse("-true");
-        assert_eq!(Ok(Exp::Test(Test::True)), res);
+        let (_, exp) = parse("-true").unwrap();
+        assert_eq!(Exp::Test(Test::True), exp);
 
-        let res = parse("-false");
-        assert_eq!(Ok(Exp::Test(Test::False)), res);
+        let (_, exp) = parse("-false").unwrap();
+        assert_eq!(Exp::Test(Test::False), exp);
 
         let res = parse("-amin");
         assert!(res.is_err());
@@ -33,14 +34,17 @@ mod parsing {
 
     #[test]
     fn test_parse_global_option() {
-        let res = parse("-depth").unwrap();
-        assert_eq!(Exp::Global(GlobalOption::Depth), res);
+        let (opt, exp) = parse("-depth").unwrap();
+        assert_eq!(vec![GlobalOption::Depth], opt);
+        assert_eq!(Exp::Test(Test::True), exp);
 
-        let res = parse("-maxdepth 44").unwrap();
-        assert_eq!(Exp::Global(GlobalOption::MaxDepth(44)), res);
+        let (opt, exp) = parse("-maxdepth 44").unwrap();
+        assert_eq!(vec![GlobalOption::MaxDepth(44)], opt);
+        assert_eq!(Exp::Test(Test::True), exp);
 
-        let res = parse("-mindepth 44").unwrap();
-        assert_eq!(Exp::Global(GlobalOption::MinDepth(44)), res);
+        let (opt, exp) = parse("-mindepth 44").unwrap();
+        assert_eq!(vec![GlobalOption::MinDepth(44)], opt);
+        assert_eq!(Exp::Test(Test::True), exp);
 
         let res = parse("-maxdepth -44");
         assert!(res.is_err());
@@ -51,106 +55,103 @@ mod parsing {
 
     #[test]
     fn test_parse_operator() {
-        let res = parse("! -true");
-        assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True))))),
-            res
-        );
+        let (_, exp) = parse("! -true").unwrap();
+        assert_eq!(Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True)))), exp);
 
-        let res = parse("-true -o -false");
+        let (_, exp) = parse("-true -o -false").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::Or(
                 Exp::Test(Test::True),
                 Exp::Test(Test::False)
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("-true -a -false");
+        let (_, exp) = parse("-true -a -false").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Operator(Rc::new(Ope::And(
                 Exp::Test(Test::True),
                 Exp::Test(Test::False)
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("-true -false");
+        let (_, exp) = parse("-true -false").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Operator(Rc::new(Ope::And(
                 Exp::Test(Test::True),
                 Exp::Test(Test::False)
-            )))),
-            res
+            ))),
+            exp
         );
     }
 
     #[test]
     fn test_parse_operator_precedence() {
         // and has a higher precedence than or, so we test this is reflected in the AST
-        let res = parse("-true -a -false -o -name test");
+        let (_, exp) = parse("-true -a -false -o -name test").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::Or(
                 Exp::Operator(Rc::new(Ope::And(
                     Exp::Test(Test::True),
                     Exp::Test(Test::False)
                 ))),
                 Exp::Test(Test::Name(String::from("test")))
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("-true -o -false -a -name test");
+        let (_, exp) = parse("-true -o -false -a -name test").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::Or(
                 Exp::Test(Test::True),
                 Exp::Operator(Rc::new(Ope::And(
                     Exp::Test(Test::False),
                     Exp::Test(Test::Name(String::from("test"))),
                 ))),
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("-true -a (-false -o -name test)");
+        let (_, exp) = parse("-true -a (-false -o -name test)").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Operator(Rc::new(Ope::And(
                 Exp::Test(Test::True),
                 Exp::Operator(Rc::new(Ope::Or(
                     Exp::Test(Test::False),
                     Exp::Test(Test::Name(String::from("test"))),
                 ))),
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("-true -a ! -false");
+        let (_, exp) = parse("-true -a ! -false").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::And(
+            Exp::Operator(Rc::new(Ope::And(
                 Exp::Test(Test::True),
                 Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::False)))),
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("! -true -o -false");
+        let (_, exp) = parse("! -true -o -false").unwrap();
         assert_eq!(
-            Ok(Exp::Operator(Rc::new(Ope::Or(
+            Exp::Operator(Rc::new(Ope::Or(
                 Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True)))),
                 Exp::Test(Test::False),
-            )))),
-            res
+            ))),
+            exp
         );
 
-        let res = parse("! ( -true -o -false )");
+        let (_, exp) = parse("! ( -true -o -false )").unwrap();
         #[rustfmt::skip]
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Not(
-            Exp::Operator(Rc::new(Ope::Or(
-                Exp::Test(Test::True),
-                Exp::Test(Test::False)
-        ))))))),
-        res
-    );
+        assert_eq!(
+            Exp::Operator(Rc::new(Ope::Not(
+                Exp::Operator(Rc::new(Ope::Or(
+                    Exp::Test(Test::True),
+                    Exp::Test(Test::False)
+            )))))),
+            exp
+        );
     }
 }

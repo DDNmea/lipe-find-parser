@@ -52,6 +52,7 @@ pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
             .map(GlobalOption::MaxDepth),
         preceded(terminated("-mindepth", multispace1), cut_err(parse_u32))
             .map(GlobalOption::MinDepth),
+        parse_type_into!("-threads", GlobalOption::Threads, parse_u32),
     ))
     .parse_next(input)
 }
@@ -280,11 +281,47 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
 
-pub fn parse<S: AsRef<str>>(input: S) -> PResult<Exp> {
-    let mut clone = input.as_ref();
-    let tokens = lex.parse_next(&mut clone)?;
-    log::debug!("Tokens: {:?}", tokens);
-    list.parse_next(&mut tokens.as_slice())
+pub fn parse<S: AsRef<str>>(input: S) -> PResult<(Vec<GlobalOption>, Exp)> {
+    // Get a reference to the input to modify while parsing
+    let mut input: &str = input.as_ref();
+
+    // Parse all the global options at the start of the command line
+    let mut globals = preceded(
+        multispace0,
+        repeat(0.., terminated(parse_global_option, multispace0)),
+    )
+    .parse_next(&mut input)
+    .unwrap_or(vec![]);
+
+    // Tokenize the rest of the command line. If empty, we had only options and we insert True
+    let tokens = if input.is_empty() {
+        vec![Token::Test(Test::True)]
+    } else {
+        lex.parse_next(&mut input)?
+    };
+
+    // Look through the token list to handle global options in the wrong order. Replace them by
+    // True to minimize the impact on expected execution.
+    let tokens: Vec<Token> = tokens
+        .into_iter()
+        .enumerate()
+        .map(|(i, t)| match t {
+            Token::Global(v) => {
+                log::warn!(
+                    "Found misplaced global option in command line: option {:?} at logical position {i}",
+                    v
+                );
+                globals.push(v);
+                Token::Test(Test::True)
+            }
+            token => token,
+        })
+        .collect();
+
+    // Transform the token list to AST
+    let expression = list.parse_next(&mut tokens.as_slice())?;
+
+    Ok((globals, expression))
 }
 
 #[test]
@@ -304,31 +341,31 @@ fn test_token() {
 
 #[test]
 fn test_lex() {
-    let res = lex(&mut "-atime 77");
+    let res = lex(&mut "-atime 77").unwrap();
     assert_eq!(
         res,
-        Ok(vec![Token::Test(Test::AccessTime(Comparison::Equal(77)))])
+        vec![Token::Test(Test::AccessTime(Comparison::Equal(77)))]
     );
 
-    let res = lex(&mut "! -atime 77 ( -name test )");
+    let res = lex(&mut "! -atime 77 ( -name test )").unwrap();
     assert_eq!(
         res,
-        Ok(vec![
+        vec![
             Token::Not,
             Token::Test(Test::AccessTime(Comparison::Equal(77))),
             Token::LParen,
             Token::Test(Test::Name(String::from("test"))),
             Token::RParen,
-        ])
+        ]
     );
 
-    let res = lex(&mut "-true -a -false");
+    let res = lex(&mut "-true -a -false").unwrap();
     assert_eq!(
         res,
-        Ok(vec![
+        vec![
             Token::Test(Test::True),
             Token::And,
             Token::Test(Test::False)
-        ])
+        ]
     );
 }

@@ -1,4 +1,4 @@
-use find_parser::parse;
+use find_parser::{compile, parse};
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
@@ -21,7 +21,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut input = args.as_str();
     match parse(&mut input) {
-        Ok(exp) => println!("{:#?}", exp),
+        Ok((options, exp)) => println!(
+            "Options: {:?}\nExpression: {:?}\nCode: {}",
+            options,
+            exp,
+            compile(&exp, "/mdt")
+        ),
         Err(e) => eprintln!("{}", e),
     }
 

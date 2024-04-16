@@ -83,6 +83,9 @@ pub enum GlobalOption {
     Depth,
     MaxDepth(u32),
     MinDepth(u32),
+
+    /// Threads to use for each scan. This is a LiPE-specific option.
+    Threads(u32),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,6 +287,8 @@ impl Scheme for Test {
         match self {
             Test::False => buffer.push_str("#f"),
             Test::True => buffer.push_str("#t"),
+            Test::Empty => buffer.push_str("(empty)"),
+            Test::Writable => buffer.push_str("(writable)"),
             Test::Name(s) => {
                 let match_ref = ctx.register_streq(s);
                 buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
