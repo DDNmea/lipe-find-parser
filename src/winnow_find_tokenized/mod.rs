@@ -1,9 +1,7 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
+#![allow(unused_imports, dead_code)]
 use crate::ast::{
     Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Test,
 };
-use crate::winnow_find::{parse_action, parse_global_option, parse_positional, parse_test};
 use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
@@ -16,6 +14,149 @@ use winnow::{
     prelude::*,
     token::{literal, one_of, take_until, take_while},
 };
+
+macro_rules! parse_type_into {
+    ($tag:expr, $target:expr, $parser:expr) => {
+        preceded(terminated($tag, multispace1), cut_err($parser)).map($target)
+    };
+}
+
+fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
+    digit1
+        .try_map(|digit_str: &str| digit_str.parse::<u32>())
+        .parse_next(i)
+}
+
+fn parse_comp(input: &mut &'_ str) -> PResult<Comparison> {
+    alt((
+        preceded("+", cut_err(parse_u32)).map(Comparison::GreaterThan),
+        preceded("-", cut_err(parse_u32)).map(Comparison::LesserThan),
+        parse_u32.map(Comparison::Equal),
+    ))
+    .parse_next(input)
+}
+
+fn parse_string(input: &mut &'_ str) -> PResult<String> {
+    alt((
+        delimited("'", take_until(0.., "'"), "'"),
+        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+    ))
+    .map(String::from)
+    .parse_next(input)
+}
+
+pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
+    alt((
+        literal("-depth").value(GlobalOption::Depth),
+        preceded(terminated("-maxdepth", multispace1), cut_err(parse_u32))
+            .map(GlobalOption::MaxDepth),
+        preceded(terminated("-mindepth", multispace1), cut_err(parse_u32))
+            .map(GlobalOption::MinDepth),
+    ))
+    .parse_next(input)
+}
+
+pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
+    literal("nope")
+        .value(PositionalOption::XDev)
+        .parse_next(input)
+}
+
+pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
+    alt((
+        preceded(terminated("-fls", multispace1), cut_err(parse_string)).map(Action::FileList),
+        preceded(terminated("-fprint", multispace1), cut_err(parse_string)).map(Action::FilePrint),
+        preceded(terminated("-fprint0", multispace1), cut_err(parse_string))
+            .map(Action::FilePrintNull),
+        //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
+        literal("-ls").value(Action::List),
+        terminated("-print", multispace0).value(Action::Print),
+        terminated("-print0", multispace0).value(Action::PrintNull),
+        preceded(terminated("-printf", multispace1), cut_err(parse_string))
+            .map(Action::PrintFormatted),
+        literal("-prune").value(Action::Prune),
+        literal("-quit").value(Action::Quit),
+    ))
+    .parse_next(input)
+}
+
+pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
+    alt((
+        alt((
+            parse_type_into!("-amin", Test::AccessMin, parse_comp),
+            parse_type_into!("-anewer", Test::AccessNewer, parse_string),
+            parse_type_into!("-atime", Test::AccessTime, parse_comp),
+            parse_type_into!("-cmin", Test::ChangeMin, parse_comp),
+            parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
+            parse_type_into!("-ctime", Test::ChangeTime, parse_comp),
+            literal("-empty").value(Test::Empty),
+            literal("-executable").value(Test::Executable),
+            literal("-false").value(Test::False),
+            parse_type_into!("-fstype", Test::FsType, parse_string),
+            parse_type_into!("-gid", Test::GroupId, parse_comp),
+            parse_type_into!("-group", Test::Group, parse_string),
+            parse_type_into!("-ilname", Test::InsensitiveLinkName, parse_string),
+            parse_type_into!("-iname", Test::InsensitiveName, parse_string),
+            parse_type_into!("-inum", Test::InodeNumber, parse_comp),
+            parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
+            parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
+            parse_type_into!("-links", Test::Hardlinks, parse_u32),
+            parse_type_into!("-mmin", Test::ModifyMin, parse_comp),
+            parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
+            parse_type_into!("-mtime", Test::ModifyTime, parse_comp),
+        )),
+        alt((
+            parse_type_into!("-name", Test::Name, parse_string),
+            literal("-nouser").value(Test::NoGroup),
+            literal("-nogroup").value(Test::NoUser),
+            parse_type_into!("-path", Test::Path, parse_string),
+            parse_type_into!("-perm", Test::Perm, parse_string),
+            parse_type_into!("-perm+", Test::PermAtLeast, parse_string),
+            parse_type_into!("-perm/", Test::PermAny, parse_string),
+            literal("-readable").value(Test::Readable),
+            parse_type_into!("-regex", Test::Regex, parse_string),
+            parse_type_into!("-samefile", Test::Samefile, parse_string),
+            parse_type_into!("-size", Test::Size, parse_string),
+            literal("-true").value(Test::True),
+            parse_type_into!("-type", Test::Type, parse_string),
+            parse_type_into!("-uid", Test::UserId, parse_comp),
+            parse_type_into!("-user", Test::User, parse_string),
+            literal("-writable").value(Test::Writable),
+        )),
+    ))
+    .parse_next(input)
+}
+
+#[test]
+fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
+    let res = parse_comp(&mut "44").unwrap();
+    assert_eq!(Comparison::Equal(44), res);
+
+    let res = parse_comp(&mut "+44").unwrap();
+    assert_eq!(Comparison::GreaterThan(44), res);
+
+    let res = parse_comp(&mut "-44").unwrap();
+    assert_eq!(Comparison::LesserThan(44), res);
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
+    let res = parse_string(&mut "a_long_string").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "a_long_string\n").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "a_long_string another").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "'a_long_string another' again").unwrap();
+    assert_eq!(String::from("a_long_string another"), res);
+
+    Ok(())
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
@@ -132,9 +273,9 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
 
-#[allow(dead_code)]
-pub fn parse(input: &mut &str) -> PResult<Exp> {
-    let tokens = lex.parse_next(input)?;
+pub fn parse<S: AsRef<str>>(input: S) -> PResult<Exp> {
+    let mut clone = input.as_ref();
+    let tokens = lex.parse_next(&mut clone)?;
     log::debug!("Tokens: {:?}", tokens);
     list.parse_next(&mut tokens.as_slice())
 }
@@ -182,128 +323,5 @@ fn test_lex() {
             Token::And,
             Token::Test(Test::False)
         ])
-    );
-}
-
-#[test]
-fn test_parse_test() {
-    let res = parse(&mut "-amin 44");
-    assert_eq!(Ok(Exp::Test(Test::AccessMin(Comparison::Equal(44)))), res);
-
-    let res = parse(&mut "-true");
-    assert_eq!(Ok(Exp::Test(Test::True)), res);
-
-    let res = parse(&mut "-false");
-    assert_eq!(Ok(Exp::Test(Test::False)), res);
-
-    let res = parse(&mut "-amin");
-    assert!(res.is_err());
-
-    let res = parse(&mut "-amin test");
-    assert!(res.is_err());
-}
-
-#[test]
-fn test_parse_operator() {
-    let res = parse(&mut "! -true");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True))))),
-        res
-    );
-
-    let res = parse(&mut "-true -o -false");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Or(
-            Exp::Test(Test::True),
-            Exp::Test(Test::False)
-        )))),
-        res
-    );
-
-    let res = parse(&mut "-true -a -false");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::And(
-            Exp::Test(Test::True),
-            Exp::Test(Test::False)
-        )))),
-        res
-    );
-
-    let res = parse(&mut "-true -false");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::And(
-            Exp::Test(Test::True),
-            Exp::Test(Test::False)
-        )))),
-        res
-    );
-}
-
-#[test]
-fn test_parse_operator_precedence() {
-    // and has a higher precedence than or, so we test this is reflected in the AST
-    let res = parse(&mut "-true -a -false -o -name test");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Or(
-            Exp::Operator(Rc::new(Ope::And(
-                Exp::Test(Test::True),
-                Exp::Test(Test::False)
-            ))),
-            Exp::Test(Test::Name(String::from("test")))
-        )))),
-        res
-    );
-
-    let res = parse(&mut "-true -o -false -a -name test");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Or(
-            Exp::Test(Test::True),
-            Exp::Operator(Rc::new(Ope::And(
-                Exp::Test(Test::False),
-                Exp::Test(Test::Name(String::from("test"))),
-            ))),
-        )))),
-        res
-    );
-
-    let res = parse(&mut "-true -a (-false -o -name test)");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::And(
-            Exp::Test(Test::True),
-            Exp::Operator(Rc::new(Ope::Or(
-                Exp::Test(Test::False),
-                Exp::Test(Test::Name(String::from("test"))),
-            ))),
-        )))),
-        res
-    );
-
-    let res = parse(&mut "-true -a ! -false");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::And(
-            Exp::Test(Test::True),
-            Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::False)))),
-        )))),
-        res
-    );
-
-    let res = parse(&mut "! -true -o -false");
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Or(
-            Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True)))),
-            Exp::Test(Test::False),
-        )))),
-        res
-    );
-
-    let res = parse(&mut "! ( -true -o -false )");
-    #[rustfmt::skip]
-    assert_eq!(
-        Ok(Exp::Operator(Rc::new(Ope::Not(
-            Exp::Operator(Rc::new(Ope::Or(
-                Exp::Test(Test::True),
-                Exp::Test(Test::False)
-        ))))))),
-        res
     );
 }

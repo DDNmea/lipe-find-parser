@@ -119,7 +119,7 @@ macro_rules! format_cmp {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct SchemeManager {
+struct SchemeManager {
     init: Vec<String>,
     fini: Vec<String>,
 
@@ -192,12 +192,12 @@ impl SchemeManager {
     }
 }
 
-pub trait Scheme {
+trait Scheme {
     fn compile(&self, buffer: &mut String, init: &mut SchemeManager);
 }
 
 impl Expression {
-    pub fn str_comps<'a>(&'a self) -> Vec<&'a String> {
+    fn str_comps<'a>(&'a self) -> Vec<&'a String> {
         let mut out = vec![];
         match self {
             Expression::Test(parameter) => {
@@ -238,7 +238,7 @@ impl Expression {
         out
     }
 
-    pub fn output_files<'a>(&'a self) -> Vec<&'a String> {
+    fn output_files<'a>(&'a self) -> Vec<&'a String> {
         let mut out = vec![];
         match self {
             Expression::Action(act) => match act {
@@ -262,7 +262,7 @@ impl Expression {
         out
     }
 
-    pub fn action(&self) -> bool {
+    fn action(&self) -> bool {
         match self {
             Expression::Action(_) => true,
 
