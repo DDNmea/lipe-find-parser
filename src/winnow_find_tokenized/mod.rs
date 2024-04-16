@@ -206,6 +206,8 @@ pub fn token(input: &mut &str) -> PResult<Token> {
     .parse_next(input)
 }
 
+/// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
+/// either side of it are resolved to expressions.
 fn list(input: &mut &[Token]) -> PResult<Exp> {
     let init = or.parse_next(input)?;
 
@@ -217,6 +219,7 @@ fn list(input: &mut &[Token]) -> PResult<Exp> {
         .parse_next(input)
 }
 
+/// Higher priority than list, but not as high as Token::And. We parse either side first.
 fn or(input: &mut &[Token]) -> PResult<Exp> {
     let init = and.parse_next(input)?;
 
@@ -228,6 +231,7 @@ fn or(input: &mut &[Token]) -> PResult<Exp> {
         .parse_next(input)
 }
 
+/// Highest priority operator. Surrounding it are atoms, and we attempt to parse them as such.
 fn and(input: &mut &[Token]) -> PResult<Exp> {
     let init = atom.parse_next(input)?;
 
@@ -242,6 +246,7 @@ fn and(input: &mut &[Token]) -> PResult<Exp> {
         .parse_next(input)
 }
 
+/// Atom is either a null/un/binary directive, a negated atom, or an expression in parenthesis.
 fn atom(input: &mut &[Token]) -> PResult<Exp> {
     alt((
         one_of(|t| {
@@ -263,12 +268,14 @@ fn atom(input: &mut &[Token]) -> PResult<Exp> {
     .parse_next(input)
 }
 
+/// Not operator before and atom.
 fn not(input: &mut &[Token]) -> PResult<Exp> {
     preceded(one_of(Token::Not), atom)
         .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
         .parse_next(input)
 }
 
+/// An expression delimited by parenthesis.
 fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
