@@ -1,8 +1,8 @@
 #![allow(unused_imports, dead_code)]
 use crate::ast::{
-    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption,
-    RunOptions, Test,
+    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Test,
 };
+use crate::RunOptions;
 use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},

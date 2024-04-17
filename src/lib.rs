@@ -1,11 +1,45 @@
 mod ast;
 mod nom_find;
+mod scheme;
 mod winnow_find_tokenized;
 
-pub use ast::compile;
+pub use scheme::compile;
 pub use winnow_find_tokenized::parse;
 
+/// Convenience struct to collect the options passed on the command line
+#[derive(Debug)]
+pub struct RunOptions {
+    pub depth: bool,
+    //pub max_depth: u32,
+    //pub min_depth: u32,
+    pub threads: Option<u32>,
+}
+
+impl Default for RunOptions {
+    fn default() -> Self {
+        RunOptions {
+            depth: false,
+            //max_depth: u32::max_value(),
+            //min_depth: u32::min_value(),
+            threads: None,
+        }
+    }
+}
+
+impl RunOptions {
+    pub fn update(&mut self, option: &ast::GlobalOption) {
+        match option {
+            ast::GlobalOption::Depth => self.depth = true,
+            //GlobalOption::MaxDepth(value) => self.max_depth = *value,
+            //GlobalOption::MinDepth(value) => self.min_depth = *value,
+            ast::GlobalOption::Threads(value) => self.threads = Some(*value),
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[cfg(test)]
+#[allow(unused_imports)]
 mod parsing {
     use crate::ast::{
         Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption,
@@ -38,6 +72,7 @@ mod parsing {
         assert!(opt.depth);
         assert_eq!(Exp::Test(Test::True), exp);
 
+        /* Disabled in LiPE
         let (opt, exp) = parse("-maxdepth 44").unwrap();
         assert_eq!(44u32, opt.max_depth);
         assert_eq!(Exp::Test(Test::True), exp);
@@ -45,6 +80,7 @@ mod parsing {
         let (opt, exp) = parse("-mindepth 44").unwrap();
         assert_eq!(44u32, opt.min_depth);
         assert_eq!(Exp::Test(Test::True), exp);
+        */
 
         let res = parse("-maxdepth -44");
         assert!(res.is_err());
