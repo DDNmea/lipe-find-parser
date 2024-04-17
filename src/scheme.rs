@@ -1,4 +1,6 @@
-use crate::ast::{Action, Comparison, Expression, GlobalOption, Operator, PositionalOption, Test};
+#![allow(dead_code, unused_variables)]
+
+use crate::ast::{Action, Comparison, Expression, Operator, PositionalOption, Test};
 use std::rc::Rc;
 
 macro_rules! format_cmp {
@@ -229,12 +231,6 @@ impl Scheme for Action {
             }
             _ => todo!(),
         }
-    }
-}
-
-impl Scheme for GlobalOption {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
-        todo!()
     }
 }
 
