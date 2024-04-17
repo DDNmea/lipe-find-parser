@@ -21,6 +21,19 @@ macro_rules! parse_type_into {
     };
 }
 
+macro_rules! parse_unary_pretty {
+    ($unary:expr, $expected:expr) => {
+        preceded(
+            $unary,
+            cut_err(preceded(multispace1, $expected))
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "Expected argument",
+                )))
+                .context(StrContext::Label($unary)),
+        )
+    };
+}
+
 fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
     digit1
         .try_map(|digit_str: &str| digit_str.parse::<u32>())
@@ -69,24 +82,16 @@ pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
 
 pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     alt((
-        preceded(terminated("-fls", multispace1), cut_err(parse_string)).map(Action::FileList),
-        preceded(
-            "-fprint",
-            cut_err(preceded(multispace1, parse_string)).context(StrContext::Expected(
-                StrContextValue::Description("Expected string argument"),
-            )),
-        )
-        .map(Action::FilePrint),
-        preceded(terminated("-fprint0", multispace1), cut_err(parse_string))
-            .map(Action::FilePrintNull),
+        parse_unary_pretty!("-fls", parse_string).map(Action::FileList),
+        parse_unary_pretty!("-fprint0", parse_string).map(Action::FilePrintNull),
         //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
-        literal("-ls").value(Action::List),
-        terminated("-print", multispace0).value(Action::Print),
+        parse_unary_pretty!("-fprint", parse_string).map(Action::FilePrint),
+        terminated("-ls", multispace0).value(Action::List),
+        parse_unary_pretty!("-printf", parse_string).map(Action::PrintFormatted),
         terminated("-print0", multispace0).value(Action::PrintNull),
-        preceded(terminated("-printf", multispace1), cut_err(parse_string))
-            .map(Action::PrintFormatted),
-        literal("-prune").value(Action::Prune),
-        literal("-quit").value(Action::Quit),
+        terminated("-print", multispace0).value(Action::Print),
+        terminated("-prune", multispace0).value(Action::Prune),
+        terminated("-quit", multispace0).value(Action::Quit),
     ))
     .context(StrContext::Label("Action"))
     .parse_next(input)
@@ -376,6 +381,14 @@ fn test_lex_action() {
             "test.out"
         )))])
     );
+
+    let res = lex(&mut "-fprint0 test.out");
+    assert_eq!(
+        res,
+        Ok(vec![Token::Action(Action::FilePrintNull(String::from(
+            "test.out"
+        )))])
+    );
 }
 
 #[test]
@@ -384,6 +397,9 @@ fn test_lex_action_error() {
     assert!(res.is_err());
 
     let res = lex(&mut "-fprint");
+    assert!(res.is_err());
+
+    let res = lex(&mut "-fprint0");
     assert!(res.is_err());
 }
 
