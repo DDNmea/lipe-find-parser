@@ -6,12 +6,11 @@ use crate::RunOptions;
 use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
-    combinator::alt,
-    combinator::repeat,
-    combinator::{cut_err, opt},
-    combinator::{delimited, preceded, separated_pair, terminated},
-    error::ContextError,
-    error::StrContext,
+    combinator::{
+        alt, cut_err, delimited, eof, opt, preceded, repeat, repeat_till, separated_pair,
+        terminated,
+    },
+    error::{ContextError, StrContext, StrContextValue},
     prelude::*,
     token::{literal, one_of, take_until, take_while},
 };
@@ -25,15 +24,17 @@ macro_rules! parse_type_into {
 fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
     digit1
         .try_map(|digit_str: &str| digit_str.parse::<u32>())
+        .context(StrContext::Label("Unsigned integer"))
         .parse_next(i)
 }
 
 fn parse_comp(input: &mut &'_ str) -> PResult<Comparison> {
-    alt((
-        preceded("+", cut_err(parse_u32)).map(Comparison::GreaterThan),
-        preceded("-", cut_err(parse_u32)).map(Comparison::LesserThan),
+    cut_err(alt((
+        preceded("+", parse_u32).map(Comparison::GreaterThan),
+        preceded("-", parse_u32).map(Comparison::LesserThan),
         parse_u32.map(Comparison::Equal),
-    ))
+    )))
+    .context(StrContext::Label("Comparison"))
     .parse_next(input)
 }
 
@@ -42,6 +43,7 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
         delimited("'", take_until(0.., "'"), "'"),
         take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
     ))
+    .context(StrContext::Label("String"))
     .map(String::from)
     .parse_next(input)
 }
@@ -55,6 +57,7 @@ pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
             .map(GlobalOption::MinDepth),
         parse_type_into!("-threads", GlobalOption::Threads, parse_u32),
     ))
+    .context(StrContext::Label("Global Option"))
     .parse_next(input)
 }
 
@@ -67,7 +70,13 @@ pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
 pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     alt((
         preceded(terminated("-fls", multispace1), cut_err(parse_string)).map(Action::FileList),
-        preceded(terminated("-fprint", multispace1), cut_err(parse_string)).map(Action::FilePrint),
+        preceded(
+            "-fprint",
+            cut_err(preceded(multispace1, parse_string)).context(StrContext::Expected(
+                StrContextValue::Description("Expected string argument"),
+            )),
+        )
+        .map(Action::FilePrint),
         preceded(terminated("-fprint0", multispace1), cut_err(parse_string))
             .map(Action::FilePrintNull),
         //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
@@ -79,6 +88,7 @@ pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
         literal("-prune").value(Action::Prune),
         literal("-quit").value(Action::Quit),
     ))
+    .context(StrContext::Label("Action"))
     .parse_next(input)
 }
 
@@ -129,37 +139,6 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     .parse_next(input)
 }
 
-#[test]
-fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
-    let res = parse_comp(&mut "44").unwrap();
-    assert_eq!(Comparison::Equal(44), res);
-
-    let res = parse_comp(&mut "+44").unwrap();
-    assert_eq!(Comparison::GreaterThan(44), res);
-
-    let res = parse_comp(&mut "-44").unwrap();
-    assert_eq!(Comparison::LesserThan(44), res);
-
-    Ok(())
-}
-
-#[test]
-fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
-    let res = parse_string(&mut "a_long_string").unwrap();
-    assert_eq!(String::from("a_long_string"), res);
-
-    let res = parse_string(&mut "a_long_string\n").unwrap();
-    assert_eq!(String::from("a_long_string"), res);
-
-    let res = parse_string(&mut "a_long_string another").unwrap();
-    assert_eq!(String::from("a_long_string"), res);
-
-    let res = parse_string(&mut "'a_long_string another' again").unwrap();
-    assert_eq!(String::from("a_long_string another"), res);
-
-    Ok(())
-}
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
     LParen,
@@ -189,7 +168,13 @@ impl winnow::stream::ContainsToken<Token> for &'_ [Token] {
 }
 
 pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
-    preceded(multispace0, repeat(1.., terminated(token, multispace0))).parse_next(input)
+    let (tokens, _) = preceded(
+        multispace0,
+        repeat_till(1.., terminated(token, multispace0), eof),
+    )
+    .parse_next(input)?;
+
+    Ok(tokens)
 }
 
 pub fn token(input: &mut &str) -> PResult<Token> {
@@ -197,14 +182,17 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         literal("(").value(Token::LParen),
         literal(")").value(Token::RParen),
         literal("!").value(Token::Not),
-        literal("-o").value(Token::Or),
         literal(",").value(Token::Comma),
+        // We need the termination clause to ensure the start of an option does not get picked up
+        // as an expression, eg `-atime` does not become `[Token::And, "time"]`
+        terminated(literal("-o"), multispace1).value(Token::Or),
         terminated(alt((literal("-a"), literal("-and"))), multispace1).value(Token::And),
         parse_test.map(Token::Test),
         parse_action.map(Token::Action),
         parse_global_option.map(Token::Global),
         parse_positional.map(Token::Positional),
     ))
+    .context(StrContext::Label("Token"))
     .parse_next(input)
 }
 
@@ -322,10 +310,43 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
         })
         .collect();
 
+    log::debug!("Tokens: {:?}", tokens);
+
     // Transform the token list to AST
     let expression = list.parse_next(&mut tokens.as_slice())?;
 
     Ok((globals, expression))
+}
+
+#[test]
+fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
+    let res = parse_comp(&mut "44").unwrap();
+    assert_eq!(Comparison::Equal(44), res);
+
+    let res = parse_comp(&mut "+44").unwrap();
+    assert_eq!(Comparison::GreaterThan(44), res);
+
+    let res = parse_comp(&mut "-44").unwrap();
+    assert_eq!(Comparison::LesserThan(44), res);
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
+    let res = parse_string(&mut "a_long_string").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "a_long_string\n").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "a_long_string another").unwrap();
+    assert_eq!(String::from("a_long_string"), res);
+
+    let res = parse_string(&mut "'a_long_string another' again").unwrap();
+    assert_eq!(String::from("a_long_string another"), res);
+
+    Ok(())
 }
 
 #[test]
@@ -341,6 +362,29 @@ fn test_token() {
         res,
         Ok(Token::Test(Test::AccessTime(Comparison::Equal(77))))
     );
+}
+
+#[test]
+fn test_lex_action() {
+    let res = lex(&mut "-print");
+    assert_eq!(res, Ok(vec![Token::Action(Action::Print)]));
+
+    let res = lex(&mut "-fprint test.out");
+    assert_eq!(
+        res,
+        Ok(vec![Token::Action(Action::FilePrint(String::from(
+            "test.out"
+        )))])
+    );
+}
+
+#[test]
+fn test_lex_action_error() {
+    let res = lex(&mut "-printf");
+    assert!(res.is_err());
+
+    let res = lex(&mut "-fprint");
+    assert!(res.is_err());
 }
 
 #[test]
