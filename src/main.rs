@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "Options: {:?}\nExpression: {:?}\nCode: {}",
             options,
             exp,
-            compile(&exp, "/mdt")
+            compile(&exp, &options, "/mdt")
         ),
         Err(e) => eprintln!("{}", e),
     }

@@ -371,18 +371,18 @@ impl Scheme for Expression {
 #[derive(Debug)]
 pub struct RunOptions {
     pub depth: bool,
-    pub max_depth: u32,
-    pub min_depth: u32,
-    pub threads: u32,
+    //pub max_depth: u32,
+    //pub min_depth: u32,
+    pub threads: Option<u32>,
 }
 
 impl Default for RunOptions {
     fn default() -> Self {
         RunOptions {
             depth: false,
-            max_depth: u32::max_value(),
-            min_depth: u32::min_value(),
-            threads: 4,
+            //max_depth: u32::max_value(),
+            //min_depth: u32::min_value(),
+            threads: None,
         }
     }
 }
@@ -391,14 +391,15 @@ impl RunOptions {
     pub fn update(&mut self, option: &GlobalOption) {
         match option {
             GlobalOption::Depth => self.depth = true,
-            GlobalOption::MaxDepth(value) => self.max_depth = *value,
-            GlobalOption::MinDepth(value) => self.min_depth = *value,
-            GlobalOption::Threads(value) => self.threads = *value,
+            //GlobalOption::MaxDepth(value) => self.max_depth = *value,
+            //GlobalOption::MinDepth(value) => self.min_depth = *value,
+            GlobalOption::Threads(value) => self.threads = Some(*value),
+            _ => unreachable!(),
         }
     }
 }
 
-pub fn compile<S: AsRef<str>>(exp: &Expression, path: S) -> String {
+pub fn compile<S: AsRef<str>>(exp: &Expression, options: &RunOptions, path: S) -> String {
     let mut buffer = String::new();
     let mut manager = SchemeManager::default();
 
@@ -422,12 +423,16 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, path: S) -> String {
         (lipe-getopt-client-mount-path)
         (lambda () {})
         (lipe-getopt-required-attrs)
-        (lipe-getopt-thread-count)))
+        {}))
     (lambda () {})))",
         manager.vars(),
         manager.init(),
         path.as_ref(),
         buffer,
+        options
+            .threads
+            .and_then(|c| Some(c.to_string()))
+            .unwrap_or(String::from("(lipe-getopt-thread-count)")),
         manager.fini(),
     )
 }
