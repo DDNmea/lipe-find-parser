@@ -284,9 +284,14 @@ mod precedence {
 
     /// Not operator before an atom.
     fn not(input: &mut &[Token]) -> PResult<Exp> {
-        preceded(one_of(Token::Not), atom)
-            .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
-            .parse_next(input)
+        preceded(
+            one_of(Token::Not),
+            cut_err(atom).context(StrContext::Expected(StrContextValue::Description(
+                "missing_not_clause",
+            ))),
+        )
+        .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
+        .parse_next(input)
     }
 
     /// An expression delimited by parenthesis.
@@ -294,7 +299,7 @@ mod precedence {
         delimited(
             one_of(Token::LParen),
             cut_err(list).context(StrContext::Expected(StrContextValue::Description(
-                "expression",
+                "missing_expression",
             ))),
             cut_err(one_of(Token::RParen)).context(StrContext::Expected(
                 StrContextValue::Description("right_parenthesis"),
@@ -302,6 +307,13 @@ mod precedence {
         )
         .context(StrContext::Label("parens"))
         .parse_next(input)
+    }
+
+    #[test]
+    fn test_parse_complete() {
+        let input = vec![Token::Test(Test::Name(String::from("test"))), Token::RParen];
+        let res = parser(&mut input.as_slice());
+        assert!(res.is_err());
     }
 
     #[test]
@@ -329,6 +341,32 @@ mod precedence {
 
         let input = vec![Token::LParen, Token::Test(Test::True)];
         let res = parens(&mut input.as_slice());
+        assert!(res.is_err());
+
+        let input = vec![Token::Test(Test::True), Token::RParen];
+        let res = parens(&mut input.as_slice());
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parse_not() {
+        let input = vec![Token::Not, Token::Test(Test::True)];
+        let res = not(&mut input.as_slice());
+        assert_eq!(
+            res,
+            Ok(Exp::Operator(Rc::new(Ope::Not(Exp::Test(Test::True)))))
+        );
+    }
+
+    #[test]
+    fn test_parse_not_error() {
+        let input = vec![Token::Not];
+        let res = not(&mut input.as_slice());
+        assert!(res.is_err());
+
+        let input = vec![Token::Test(Test::True), Token::Not];
+        let res = not(&mut input.as_slice());
+        println!("{:?} {:?}", input, res);
         assert!(res.is_err());
     }
 }
