@@ -206,14 +206,15 @@ pub fn token(input: &mut &str) -> PResult<Token> {
 }
 
 mod precedence {
-    use crate::winnow_find_tokenized::{Exp, Ope, Token};
+    use crate::winnow_find_tokenized::{Exp, Ope, Test, Token};
     use std::rc::Rc;
-    use winnow::combinator::{alt, delimited, preceded, repeat};
+    use winnow::combinator::{alt, cut_err, delimited, fail, preceded, repeat};
+    use winnow::error::{StrContext, StrContextValue};
     use winnow::{prelude::Parser, token::one_of, PResult};
 
     /// Precedence parser entry point
     pub fn parser(input: &mut &[Token]) -> PResult<Exp> {
-        list(input)
+        list.context(StrContext::Label("grammar")).parse_next(input)
     }
 
     /// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
@@ -274,11 +275,14 @@ mod precedence {
             }),
             not,
             parens,
+            fail.context(StrContext::Expected(StrContextValue::Description(
+                "invalid_syntax",
+            ))),
         ))
         .parse_next(input)
     }
 
-    /// Not operator before and atom.
+    /// Not operator before an atom.
     fn not(input: &mut &[Token]) -> PResult<Exp> {
         preceded(one_of(Token::Not), atom)
             .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
@@ -287,7 +291,45 @@ mod precedence {
 
     /// An expression delimited by parenthesis.
     fn parens(input: &mut &[Token]) -> PResult<Exp> {
-        delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
+        delimited(
+            one_of(Token::LParen),
+            cut_err(list).context(StrContext::Expected(StrContextValue::Description(
+                "expression",
+            ))),
+            cut_err(one_of(Token::RParen)).context(StrContext::Expected(
+                StrContextValue::Description("right_parenthesis"),
+            )),
+        )
+        .context(StrContext::Label("parens"))
+        .parse_next(input)
+    }
+
+    #[test]
+    fn test_parse_parens() {
+        let input = vec![Token::LParen, Token::Test(Test::True), Token::RParen];
+        let res = parens(&mut input.as_slice());
+        assert_eq!(res, Ok(Exp::Test(Test::True)));
+
+        let input = vec![
+            Token::LParen,
+            Token::LParen,
+            Token::Test(Test::True),
+            Token::RParen,
+            Token::RParen,
+        ];
+        let res = parens(&mut input.as_slice());
+        assert_eq!(res, Ok(Exp::Test(Test::True)));
+    }
+
+    #[test]
+    fn test_parse_parens_error() {
+        let input = vec![Token::LParen, Token::RParen];
+        let res = parens(&mut input.as_slice());
+        assert!(res.is_err());
+
+        let input = vec![Token::LParen, Token::Test(Test::True)];
+        let res = parens(&mut input.as_slice());
+        assert!(res.is_err());
     }
 }
 
@@ -346,7 +388,7 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
         Err(e) => {
             let subject = e.clone();
             log::error!(
-                "Failed to parse token: {} ({:?})",
+                "Error parsing input: {} ({:?})",
                 parse_string.parse_peek(input)?.1,
                 subject.into_inner().unwrap().context().collect::<Vec<_>>()
             );
