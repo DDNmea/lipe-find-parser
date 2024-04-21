@@ -17,24 +17,19 @@ use winnow::{
 
 macro_rules! parse_type_into {
     ($tag:expr, $target:expr, $parser:expr) => {
-        preceded(terminated($tag, multispace1), cut_err($parser))
-            .context(StrContext::Expected(StrContextValue::Description(
-                "Expected argument",
-            )))
+        preceded($tag, cut_err(preceded(multispace1, $parser)))
             .context(StrContext::Label($tag))
             .map($target)
     };
 }
 
 macro_rules! parse_unary_pretty {
-    ($unary:expr, $expected:expr) => {
+    ($unary:expr, $target:expr, $expected:expr) => {
         preceded(
             $unary,
             cut_err(preceded(multispace1, $expected))
-                .context(StrContext::Expected(StrContextValue::Description(
-                    "Expected argument",
-                )))
-                .context(StrContext::Label($unary)),
+                .context(StrContext::Label($unary))
+                .map($target),
         )
     };
 }
@@ -42,7 +37,9 @@ macro_rules! parse_unary_pretty {
 fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
     digit1
         .try_map(|digit_str: &str| digit_str.parse::<u32>())
-        .context(StrContext::Label("Unsigned integer"))
+        .context(StrContext::Expected(StrContextValue::Description(
+            "unsigned_integer",
+        )))
         .parse_next(i)
 }
 
@@ -52,7 +49,7 @@ fn parse_comp(input: &mut &'_ str) -> PResult<Comparison> {
         preceded("-", parse_u32).map(Comparison::LesserThan),
         parse_u32.map(Comparison::Equal),
     )))
-    .context(StrContext::Label("Comparison"))
+    .context(StrContext::Label("comparison"))
     .parse_next(input)
 }
 
@@ -61,45 +58,43 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
         delimited("'", take_until(0.., "'"), "'"),
         take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
     ))
+    .context(StrContext::Expected(StrContextValue::Description("string")))
     .map(String::from)
-    .context(StrContext::Label("String"))
     .parse_next(input)
 }
 
 pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
     alt((
         literal("-depth").value(GlobalOption::Depth),
-        preceded(terminated("-maxdepth", multispace1), cut_err(parse_u32))
-            .map(GlobalOption::MaxDepth),
-        preceded(terminated("-mindepth", multispace1), cut_err(parse_u32))
-            .map(GlobalOption::MinDepth),
-        parse_type_into!("-threads", GlobalOption::Threads, parse_u32),
+        parse_unary_pretty!("-maxdepth", GlobalOption::MaxDepth, parse_u32),
+        parse_unary_pretty!("-mindepth", GlobalOption::MinDepth, parse_u32),
+        parse_unary_pretty!("-threads", GlobalOption::Threads, parse_u32),
     ))
-    .context(StrContext::Label("Global Option"))
+    .context(StrContext::Label("global_option"))
     .parse_next(input)
 }
 
 pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
     literal("nope")
         .value(PositionalOption::XDev)
-        .context(StrContext::Label("Positional Option"))
+        .context(StrContext::Label("positional_option"))
         .parse_next(input)
 }
 
 pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     alt((
-        parse_unary_pretty!("-fls", parse_string).map(Action::FileList),
-        parse_unary_pretty!("-fprint0", parse_string).map(Action::FilePrintNull),
+        parse_unary_pretty!("-fls", Action::FileList, parse_string),
+        parse_unary_pretty!("-fprint0", Action::FilePrintNull, parse_string),
         //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
-        parse_unary_pretty!("-fprint", parse_string).map(Action::FilePrint),
+        parse_unary_pretty!("-fprint", Action::FilePrint, parse_string),
         terminated("-ls", multispace0).value(Action::List),
-        parse_unary_pretty!("-printf", parse_string).map(Action::PrintFormatted),
+        parse_unary_pretty!("-printf", Action::PrintFormatted, parse_string),
         terminated("-print0", multispace0).value(Action::PrintNull),
         terminated("-print", multispace0).value(Action::Print),
         terminated("-prune", multispace0).value(Action::Prune),
         terminated("-quit", multispace0).value(Action::Quit),
     ))
-    .context(StrContext::Label("Action"))
+    .context(StrContext::Label("action"))
     .parse_next(input)
 }
 
@@ -147,7 +142,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             literal("-writable").value(Test::Writable),
         )),
     ))
-    .context(StrContext::Label("Test"))
+    .context(StrContext::Label("test"))
     .parse_next(input)
 }
 
@@ -180,23 +175,12 @@ impl winnow::stream::ContainsToken<Token> for &'_ [Token] {
 }
 
 pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
-    let output = preceded(
+    preceded(
         multispace0,
         repeat_till(1.., terminated(token, multispace0), eof),
     )
-    .parse_next(input);
-
-    match output {
-        Ok((tokens, _)) => Ok(tokens),
-        Err(e) => {
-            log::error!(
-                "Failed to parse token: {} ({:#?})",
-                parse_string.parse_peek(input)?.1,
-                e
-            );
-            Err(e)
-        }
-    }
+    .map(|(tks, _)| tks)
+    .parse_next(input)
 }
 
 pub fn token(input: &mut &str) -> PResult<Token> {
@@ -207,8 +191,8 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         literal(",").value(Token::Comma),
         // We need the termination clause to ensure the start of an option does not get picked up
         // as an expression, eg `-atime` does not become `[Token::And, "time"]`
-        terminated(literal("-o"), multispace1).value(Token::Or),
-        terminated(alt((literal("-a"), literal("-and"))), multispace1).value(Token::And),
+        terminated(alt(("-or", "-o")), alt((multispace1, eof))).value(Token::Or),
+        terminated(alt(("-and", "-a")), alt((multispace1, eof))).value(Token::And),
         parse_test.map(Token::Test),
         parse_action.map(Token::Action),
         parse_global_option.map(Token::Global),
@@ -217,7 +201,7 @@ pub fn token(input: &mut &str) -> PResult<Token> {
             "Encountered unknown token",
         ))),
     ))
-    .context(StrContext::Label("Token"))
+    .context(StrContext::Label("token"))
     .parse_next(input)
 }
 
@@ -295,26 +279,24 @@ fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
 }
 
-pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
-    // Get a reference to the input to modify while parsing
-    let mut input: &str = input.as_ref();
-
+fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     // Parse all the global options at the start of the command line
     let mut globals = RunOptions::default();
-    preceded(
-        multispace0,
-        repeat(0.., terminated(parse_global_option, multispace0)),
-    )
-    .parse_next(&mut input)
-    .unwrap_or(vec![])
+    winnow::Parser::<&str, Vec<GlobalOption>, winnow::error::ContextError>::parse_next(
+        &mut preceded(
+            multispace0,
+            repeat(0.., terminated(parse_global_option, multispace0)),
+        ),
+        input,
+    )?
     .iter()
-    .for_each(|g| globals.update(g));
+    .for_each(|g: &GlobalOption| globals.update(g));
 
     // Tokenize the rest of the command line. If empty, we had only options and we insert True
     let tokens = if input.is_empty() {
         vec![Token::Test(Test::True)]
     } else {
-        lex.parse_next(&mut input)?
+        lex.parse_next(input)?
     };
 
     // Look through the token list to handle global options in the wrong order. Replace them by
@@ -338,9 +320,25 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
     log::debug!("Tokens: {:?}", tokens);
 
     // Transform the token list to AST
-    let expression = list.parse_next(&mut tokens.as_slice())?;
+    Ok((globals, list.parse_next(&mut tokens.as_slice())?))
+}
 
-    Ok((globals, expression))
+pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
+    // Get a reference to the input to modify while parsing
+    let mut input: &str = input.as_ref();
+
+    match _parse(&mut input) {
+        Err(e) => {
+            let subject = e.clone();
+            log::error!(
+                "Failed to parse token: {} ({:?})",
+                parse_string.parse_peek(input)?.1,
+                subject.into_inner().unwrap().context().collect::<Vec<_>>()
+            );
+            Err(e)
+        }
+        ok => ok,
+    }
 }
 
 #[test]
@@ -355,6 +353,15 @@ fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(Comparison::LesserThan(44), res);
 
     Ok(())
+}
+
+#[test]
+fn test_parse_comparison_error() {
+    let res = parse_comp(&mut "not an int");
+    assert!(res.is_err());
+
+    let res = parse_comp(&mut "@44");
+    assert!(res.is_err());
 }
 
 #[test]
@@ -388,6 +395,27 @@ fn test_token() {
         Ok(Token::Test(Test::AccessTime(Comparison::Equal(77))))
     );
 
+    for (operator, expected_token) in vec![
+        ("-a", Token::And),
+        ("-and", Token::And),
+        ("-o", Token::Or),
+        ("-or", Token::Or),
+    ] {
+        let res = token(&mut format!("{}", operator).as_str());
+        assert_eq!(res, Ok(expected_token.clone()));
+
+        // This case should be handled by the repeat combinator, and no token should have leading
+        // whitespace. Could be enabled but would complicate the parsing.
+        //let res = token(&mut format!(" {}", operator).as_str());
+        //assert_eq!(res, Ok(expected_token.clone()));
+
+        let res = token(&mut format!("{} ", operator).as_str());
+        assert_eq!(res, Ok(expected_token.clone()));
+    }
+}
+
+#[test]
+fn test_token_error() {
     let res = token(&mut "-notanoption");
     assert!(res.is_err());
 }
@@ -455,4 +483,14 @@ fn test_lex() {
             Token::Test(Test::False)
         ]
     );
+}
+
+#[test]
+/// Asserts the parser does not try to recover and return a partial list on error
+fn test_lex_error() {
+    let res = lex(&mut "-anerr param -name test");
+    assert!(res.is_err());
+
+    let res = lex(&mut "-name test -anerr param");
+    assert!(res.is_err());
 }
