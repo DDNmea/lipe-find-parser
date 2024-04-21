@@ -7,7 +7,7 @@ use std::rc::Rc;
 use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
     combinator::{
-        alt, cut_err, delimited, eof, opt, preceded, repeat, repeat_till, separated_pair,
+        alt, cut_err, delimited, eof, fail, opt, preceded, repeat, repeat_till, separated_pair,
         terminated,
     },
     error::{ContextError, StrContext, StrContextValue},
@@ -17,7 +17,12 @@ use winnow::{
 
 macro_rules! parse_type_into {
     ($tag:expr, $target:expr, $parser:expr) => {
-        preceded(terminated($tag, multispace1), cut_err($parser)).map($target)
+        preceded(terminated($tag, multispace1), cut_err($parser))
+            .context(StrContext::Expected(StrContextValue::Description(
+                "Expected argument",
+            )))
+            .context(StrContext::Label($tag))
+            .map($target)
     };
 }
 
@@ -56,8 +61,8 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
         delimited("'", take_until(0.., "'"), "'"),
         take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
     ))
-    .context(StrContext::Label("String"))
     .map(String::from)
+    .context(StrContext::Label("String"))
     .parse_next(input)
 }
 
@@ -77,6 +82,7 @@ pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
 pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
     literal("nope")
         .value(PositionalOption::XDev)
+        .context(StrContext::Label("Positional Option"))
         .parse_next(input)
 }
 
@@ -141,6 +147,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             literal("-writable").value(Test::Writable),
         )),
     ))
+    .context(StrContext::Label("Test"))
     .parse_next(input)
 }
 
@@ -173,13 +180,23 @@ impl winnow::stream::ContainsToken<Token> for &'_ [Token] {
 }
 
 pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
-    let (tokens, _) = preceded(
+    let output = preceded(
         multispace0,
         repeat_till(1.., terminated(token, multispace0), eof),
     )
-    .parse_next(input)?;
+    .parse_next(input);
 
-    Ok(tokens)
+    match output {
+        Ok((tokens, _)) => Ok(tokens),
+        Err(e) => {
+            log::error!(
+                "Failed to parse token: {} ({:#?})",
+                parse_string.parse_peek(input)?.1,
+                e
+            );
+            Err(e)
+        }
+    }
 }
 
 pub fn token(input: &mut &str) -> PResult<Token> {
@@ -196,6 +213,9 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         parse_action.map(Token::Action),
         parse_global_option.map(Token::Global),
         parse_positional.map(Token::Positional),
+        fail.context(StrContext::Expected(StrContextValue::Description(
+            "Encountered unknown token",
+        ))),
     ))
     .context(StrContext::Label("Token"))
     .parse_next(input)
@@ -367,6 +387,9 @@ fn test_token() {
         res,
         Ok(Token::Test(Test::AccessTime(Comparison::Equal(77))))
     );
+
+    let res = token(&mut "-notanoption");
+    assert!(res.is_err());
 }
 
 #[test]
