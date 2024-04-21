@@ -198,85 +198,97 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         parse_global_option.map(Token::Global),
         parse_positional.map(Token::Positional),
         fail.context(StrContext::Expected(StrContextValue::Description(
-            "Encountered unknown token",
+            "invalid_token",
         ))),
     ))
     .context(StrContext::Label("token"))
     .parse_next(input)
 }
 
-/// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
-/// either side of it are resolved to expressions.
-fn list(input: &mut &[Token]) -> PResult<Exp> {
-    let init = or.parse_next(input)?;
+mod precedence {
+    use crate::winnow_find_tokenized::{Exp, Ope, Token};
+    use std::rc::Rc;
+    use winnow::combinator::{alt, delimited, preceded, repeat};
+    use winnow::{prelude::Parser, token::one_of, PResult};
 
-    repeat(0.., (one_of(Token::Comma), or))
-        .fold(
-            move || init.clone(),
-            |acc, (_, val): (Token, Exp)| Exp::Operator(Rc::new(Ope::List(acc, val))),
-        )
-        .parse_next(input)
-}
+    /// Precedence parser entry point
+    pub fn parser(input: &mut &[Token]) -> PResult<Exp> {
+        list(input)
+    }
 
-/// Higher priority than list, but not as high as Token::And. We parse either side first.
-fn or(input: &mut &[Token]) -> PResult<Exp> {
-    let init = and.parse_next(input)?;
+    /// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
+    /// either side of it are resolved to expressions.
+    fn list(input: &mut &[Token]) -> PResult<Exp> {
+        let init = or.parse_next(input)?;
 
-    repeat(0.., preceded(one_of(Token::Or), and))
-        .fold(
-            move || init.clone(),
-            |acc, val| Exp::Operator(Rc::new(Ope::Or(acc, val))),
-        )
-        .parse_next(input)
-}
-
-/// Highest priority operator. Surrounding it are atoms, and we attempt to parse them as such.
-fn and(input: &mut &[Token]) -> PResult<Exp> {
-    let init = atom.parse_next(input)?;
-
-    // awful awful awful readability but here we check for (Token::And, atom) first. In case we are
-    // not so lucky try for atom again, at which point we have two atoms together and this means we
-    // are blessed with the presence of an implicit and.
-    repeat(0.., alt((preceded(one_of(Token::And), atom), atom)))
-        .fold(
-            move || init.clone(),
-            |acc, val| Exp::Operator(Rc::new(Ope::And(acc, val))),
-        )
-        .parse_next(input)
-}
-
-/// Atom is either a null/un/binary directive, a negated atom, or an expression in parenthesis.
-fn atom(input: &mut &[Token]) -> PResult<Exp> {
-    alt((
-        one_of(|t| {
-            matches!(
-                t,
-                Token::Test(_) | Token::Action(_) | Token::Global(_) | Token::Positional(_)
+        repeat(0.., (one_of(Token::Comma), or))
+            .fold(
+                move || init.clone(),
+                |acc, (_, val): (Token, Exp)| Exp::Operator(Rc::new(Ope::List(acc, val))),
             )
-        })
-        .map(|t| match t {
-            Token::Test(v) => Exp::Test(v),
-            Token::Action(v) => Exp::Action(v),
-            Token::Global(v) => Exp::Global(v),
-            Token::Positional(v) => Exp::Positional(v),
-            _ => unreachable!(),
-        }),
-        not,
-        parens,
-    ))
-    .parse_next(input)
-}
+            .parse_next(input)
+    }
 
-/// Not operator before and atom.
-fn not(input: &mut &[Token]) -> PResult<Exp> {
-    preceded(one_of(Token::Not), atom)
-        .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
+    /// Higher priority than list, but not as high as Token::And. We parse either side first.
+    fn or(input: &mut &[Token]) -> PResult<Exp> {
+        let init = and.parse_next(input)?;
+
+        repeat(0.., preceded(one_of(Token::Or), and))
+            .fold(
+                move || init.clone(),
+                |acc, val| Exp::Operator(Rc::new(Ope::Or(acc, val))),
+            )
+            .parse_next(input)
+    }
+
+    /// Highest priority operator. Surrounding it are atoms, and we attempt to parse them as such.
+    fn and(input: &mut &[Token]) -> PResult<Exp> {
+        let init = atom.parse_next(input)?;
+
+        // awful awful awful readability but here we check for (Token::And, atom) first. In case we are
+        // not so lucky try for atom again, at which point we have two atoms together and this means we
+        // are blessed with the presence of an implicit and.
+        repeat(0.., alt((preceded(one_of(Token::And), atom), atom)))
+            .fold(
+                move || init.clone(),
+                |acc, val| Exp::Operator(Rc::new(Ope::And(acc, val))),
+            )
+            .parse_next(input)
+    }
+
+    /// Atom is either a null/un/binary directive, a negated atom, or an expression in parenthesis.
+    fn atom(input: &mut &[Token]) -> PResult<Exp> {
+        alt((
+            one_of(|t| {
+                matches!(
+                    t,
+                    Token::Test(_) | Token::Action(_) | Token::Global(_) | Token::Positional(_)
+                )
+            })
+            .map(|t| match t {
+                Token::Test(v) => Exp::Test(v),
+                Token::Action(v) => Exp::Action(v),
+                Token::Global(v) => Exp::Global(v),
+                Token::Positional(v) => Exp::Positional(v),
+                _ => unreachable!(),
+            }),
+            not,
+            parens,
+        ))
         .parse_next(input)
-}
+    }
 
-/// An expression delimited by parenthesis.
-fn parens(input: &mut &[Token]) -> PResult<Exp> {
-    delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
+    /// Not operator before and atom.
+    fn not(input: &mut &[Token]) -> PResult<Exp> {
+        preceded(one_of(Token::Not), atom)
+            .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
+            .parse_next(input)
+    }
+
+    /// An expression delimited by parenthesis.
+    fn parens(input: &mut &[Token]) -> PResult<Exp> {
+        delimited(one_of(Token::LParen), list, one_of(Token::RParen)).parse_next(input)
+    }
 }
 
 fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
@@ -320,7 +332,10 @@ fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     log::debug!("Tokens: {:?}", tokens);
 
     // Transform the token list to AST
-    Ok((globals, list.parse_next(&mut tokens.as_slice())?))
+    Ok((
+        globals,
+        precedence::parser.parse_next(&mut tokens.as_slice())?,
+    ))
 }
 
 pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
