@@ -186,6 +186,9 @@ impl Scheme for Test {
                 buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
             }
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            #[cfg(debug_assertions)]
+            _ => buffer.push_str("(UNIMPLEMENTED)"),
+            #[cfg(not(debug_assertions))]
             _ => todo!(),
         }
     }
@@ -229,6 +232,9 @@ impl Scheme for Action {
                 let var_id = ctx.register_file(dest);
                 buffer.push_str(&format!("(call-with-relative-path %lf3:print:{})", var_id))
             }
+            #[cfg(debug_assertions)]
+            _ => buffer.push_str("(UNIMPLEMENTED)"),
+            #[cfg(not(debug_assertions))]
             _ => todo!(),
         }
     }
@@ -236,7 +242,12 @@ impl Scheme for Action {
 
 impl Scheme for PositionalOption {
     fn compile(&self, buffer: &mut String, _: &mut SchemeManager) {
-        todo!()
+        match self {
+            #[cfg(debug_assertions)]
+            _ => buffer.push_str("(UNIMPLEMENTED)"),
+            #[cfg(not(debug_assertions))]
+            _ => todo!(),
+        }
     }
 }
 
@@ -246,6 +257,9 @@ impl Scheme for Expression {
             Expression::Test(t) => t.compile(buffer, ctx),
             Expression::Action(a) => a.compile(buffer, ctx),
             Expression::Operator(o) => o.as_ref().compile(buffer, ctx),
+            #[cfg(debug_assertions)]
+            _ => buffer.push_str("(UNIMPLEMENTED)"),
+            #[cfg(not(debug_assertions))]
             _ => todo!(),
         }
     }
