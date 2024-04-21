@@ -185,7 +185,7 @@ impl Scheme for Test {
                 let match_ref = ctx.register_streq(s);
                 buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
             }
-            Test::AccessMin(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             _ => todo!(),
         }
     }
