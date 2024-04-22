@@ -3,41 +3,56 @@
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Comparison {
-    GreaterThan(u32),
-    LesserThan(u32),
-    Equal(u32),
+pub enum TimeRecord<T> {
+    GreaterThan(T),
+    LesserThan(T),
+    Equal(T),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Size {}
+pub enum Size {
+    Block(u32),
+    Bytes(u32),
+    Word(u32),
+    KiloBytes(u32),
+    MegaBytes(u32),
+    GigaBytes(u32),
+    TeraBytes(u32),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Comparison<T> {
+    GreaterThan(T),
+    LesserThan(T),
+    Equal(T),
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
-    AccessMin(Comparison),
+    AccessMin(Comparison<u32>),
     AccessNewer(String),
-    AccessTime(Comparison),
-    ChangeMin(Comparison),
+    AccessTime(Comparison<u32>),
+    ChangeMin(Comparison<u32>),
     ChangeNewer(String),
-    ChangeTime(Comparison),
+    ChangeTime(Comparison<u32>),
     Empty,
     Executable,
     False,
     FsType(String),
-    GroupId(Comparison),
+    GroupId(Comparison<u32>),
     Group(String),
     InsensitiveLinkName(String), //TODO Pattern
     InsensitiveName(String),     //TODO Pattern
-    InodeNumber(Comparison),
+    InodeNumber(Comparison<u32>),
     InsensitivePath(String),
     InsensitiveRegex(String),
     Hardlinks(u32),
-    ModifyMin(Comparison),
+    ModifyMin(Comparison<u32>),
     ModifyNewer(String),
-    ModifyTime(Comparison),
+    ModifyTime(Comparison<u32>),
     Name(String),
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     NoGroup,
@@ -49,10 +64,10 @@ pub enum Test {
     Readable,
     Regex(String),
     Samefile(String),
-    Size(String),
+    Size(Comparison<Size>),
     True,
     Type(String),
-    UserId(Comparison),
+    UserId(Comparison<u32>),
     User(String),
     Writable,
     //XType(Type)

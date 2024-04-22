@@ -2,6 +2,7 @@
 
 use crate::ast::{Action, Comparison, Expression, Operator, PositionalOption, Test};
 use std::rc::Rc;
+use std::time::Instant;
 
 macro_rules! format_cmp {
     ($cmp:expr, $target:expr) => {
@@ -13,13 +14,27 @@ macro_rules! format_cmp {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 struct SchemeManager {
+    invocation: Instant,
+
     init: Vec<String>,
     fini: Vec<String>,
 
     var_index: usize,
     vars: Vec<String>,
+}
+
+impl Default for SchemeManager {
+    fn default() -> Self {
+        SchemeManager {
+            invocation: Instant::now(),
+            init: vec![],
+            fini: vec![],
+            var_index: 0usize,
+            vars: vec![],
+        }
+    }
 }
 
 impl SchemeManager {
@@ -114,7 +129,6 @@ impl Expression {
                 | Test::PermAny(s)
                 | Test::Regex(s)
                 | Test::Samefile(s)
-                | Test::Size(s)
                 | Test::Type(s)
                 | Test::User(s) = parameter
                 {

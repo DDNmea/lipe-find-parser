@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use crate::ast::{
-    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Test,
+    Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Size,
+    Test,
 };
 use crate::RunOptions;
 use std::rc::Rc;
@@ -34,6 +35,24 @@ macro_rules! parse_unary_pretty {
     };
 }
 
+trait Parseable {
+    fn parse(input: &mut &str) -> PResult<Self>
+    where
+        Self: Sized;
+}
+
+impl Parseable for u32 {
+    fn parse(input: &mut &str) -> PResult<u32> {
+        parse_u32(input)
+    }
+}
+
+impl Parseable for Size {
+    fn parse(input: &mut &str) -> PResult<Size> {
+        parse_size(input)
+    }
+}
+
 fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
     digit1
         .try_map(|digit_str: &str| digit_str.parse::<u32>())
@@ -43,11 +62,14 @@ fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
         .parse_next(i)
 }
 
-fn parse_comp(input: &mut &'_ str) -> PResult<Comparison> {
+fn parse_comp<T>(input: &mut &'_ str) -> PResult<Comparison<T>>
+where
+    T: Parseable,
+{
     cut_err(alt((
-        preceded("+", parse_u32).map(Comparison::GreaterThan),
-        preceded("-", parse_u32).map(Comparison::LesserThan),
-        parse_u32.map(Comparison::Equal),
+        preceded("+", T::parse).map(Comparison::GreaterThan),
+        preceded("-", T::parse).map(Comparison::LesserThan),
+        T::parse.map(Comparison::Equal),
         preceded(
             any,
             fail.context(StrContext::Expected(StrContextValue::Description(
@@ -67,6 +89,11 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
     .context(StrContext::Expected(StrContextValue::Description("string")))
     .map(String::from)
     .parse_next(input)
+}
+
+fn parse_size(input: &mut &'_ str) -> PResult<Size> {
+    fail.context(StrContext::Expected(StrContextValue::Description("string")))
+        .parse_next(input)
 }
 
 pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
@@ -107,27 +134,27 @@ pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
 pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     alt((
         alt((
-            parse_type_into!("-amin", Test::AccessMin, parse_comp),
+            parse_type_into!("-amin", Test::AccessMin, parse_comp::<u32>),
             parse_type_into!("-anewer", Test::AccessNewer, parse_string),
-            parse_type_into!("-atime", Test::AccessTime, parse_comp),
-            parse_type_into!("-cmin", Test::ChangeMin, parse_comp),
+            parse_type_into!("-atime", Test::AccessTime, parse_comp::<u32>),
+            parse_type_into!("-cmin", Test::ChangeMin, parse_comp::<u32>),
             parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
-            parse_type_into!("-ctime", Test::ChangeTime, parse_comp),
+            parse_type_into!("-ctime", Test::ChangeTime, parse_comp::<u32>),
             literal("-empty").value(Test::Empty),
             literal("-executable").value(Test::Executable),
             literal("-false").value(Test::False),
             parse_type_into!("-fstype", Test::FsType, parse_string),
-            parse_type_into!("-gid", Test::GroupId, parse_comp),
+            parse_type_into!("-gid", Test::GroupId, parse_comp::<u32>),
             parse_type_into!("-group", Test::Group, parse_string),
             parse_type_into!("-ilname", Test::InsensitiveLinkName, parse_string),
             parse_type_into!("-iname", Test::InsensitiveName, parse_string),
-            parse_type_into!("-inum", Test::InodeNumber, parse_comp),
+            parse_type_into!("-inum", Test::InodeNumber, parse_comp::<u32>),
             parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
             parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
             parse_type_into!("-links", Test::Hardlinks, parse_u32),
-            parse_type_into!("-mmin", Test::ModifyMin, parse_comp),
+            parse_type_into!("-mmin", Test::ModifyMin, parse_comp::<u32>),
             parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
-            parse_type_into!("-mtime", Test::ModifyTime, parse_comp),
+            parse_type_into!("-mtime", Test::ModifyTime, parse_comp::<u32>),
         )),
         alt((
             parse_type_into!("-name", Test::Name, parse_string),
@@ -140,10 +167,10 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             literal("-readable").value(Test::Readable),
             parse_type_into!("-regex", Test::Regex, parse_string),
             parse_type_into!("-samefile", Test::Samefile, parse_string),
-            parse_type_into!("-size", Test::Size, parse_string),
+            parse_type_into!("-size", Test::Size, parse_comp::<Size>),
             literal("-true").value(Test::True),
             parse_type_into!("-type", Test::Type, parse_string),
-            parse_type_into!("-uid", Test::UserId, parse_comp),
+            parse_type_into!("-uid", Test::UserId, parse_comp::<u32>),
             parse_type_into!("-user", Test::User, parse_string),
             literal("-writable").value(Test::Writable),
         )),
@@ -494,7 +521,7 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
 }
 
 #[test]
-fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
+fn test_parse_comparison_uint() -> Result<(), Box<dyn std::error::Error>> {
     let res = parse_comp(&mut "44").unwrap();
     assert_eq!(Comparison::Equal(44), res);
 
@@ -508,11 +535,11 @@ fn test_parse_comparison() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_parse_comparison_error() {
-    let res = parse_comp(&mut "not an int");
+fn test_parse_comparison_uint_error() {
+    let res = parse_comp::<u32>(&mut "not an int");
     assert!(res.is_err());
 
-    let res = parse_comp(&mut "@44");
+    let res = parse_comp::<u32>(&mut "@44");
     assert!(res.is_err());
 }
 
@@ -531,6 +558,33 @@ fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(String::from("a_long_string another"), res);
 
     Ok(())
+}
+
+#[test]
+fn test_parse_size() {
+    let res = parse_size(&mut "20");
+    assert_eq!(res, Ok(Size::Block(20)));
+
+    let res = parse_size(&mut "20b");
+    assert_eq!(res, Ok(Size::Block(20)));
+
+    let res = parse_size(&mut "200c");
+    assert_eq!(res, Ok(Size::Bytes(200)));
+
+    let res = parse_size(&mut "200w");
+    assert_eq!(res, Ok(Size::Word(200)));
+
+    let res = parse_size(&mut "200k");
+    assert_eq!(res, Ok(Size::KiloBytes(200)));
+
+    let res = parse_size(&mut "200M");
+    assert_eq!(res, Ok(Size::MegaBytes(200)));
+
+    let res = parse_size(&mut "200G");
+    assert_eq!(res, Ok(Size::GigaBytes(200)));
+
+    let res = parse_size(&mut "200T");
+    assert_eq!(res, Ok(Size::TeraBytes(200)));
 }
 
 #[test]
