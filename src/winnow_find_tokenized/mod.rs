@@ -69,13 +69,7 @@ where
     cut_err(alt((
         preceded("+", T::parse).map(Comparison::GreaterThan),
         preceded("-", T::parse).map(Comparison::LesserThan),
-        T::parse.map(Comparison::Equal),
-        preceded(
-            any,
-            fail.context(StrContext::Expected(StrContextValue::Description(
-                "comparison_expression",
-            ))),
-        ),
+        cut_err(T::parse).map(Comparison::Equal),
     )))
     .context(StrContext::Label("comparison"))
     .parse_next(input)
@@ -92,8 +86,21 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
 }
 
 fn parse_size(input: &mut &'_ str) -> PResult<Size> {
-    fail.context(StrContext::Expected(StrContextValue::Description("string")))
-        .parse_next(input)
+    alt((
+        (parse_u32, one_of(|c| "bcwkMGT".contains(c))).map(|(num, unit)| match unit {
+            'b' => Size::Block(num),
+            'c' => Size::Byte(num),
+            'w' => Size::Word(num),
+            'k' => Size::KiloByte(num),
+            'M' => Size::MegaByte(num),
+            'G' => Size::GigaByte(num),
+            'T' => Size::TeraByte(num),
+            _ => unreachable!(),
+        }),
+        parse_u32.map(Size::Block),
+    ))
+    .context(StrContext::Expected(StrContextValue::Description("size")))
+    .parse_next(input)
 }
 
 pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
@@ -569,22 +576,28 @@ fn test_parse_size() {
     assert_eq!(res, Ok(Size::Block(20)));
 
     let res = parse_size(&mut "200c");
-    assert_eq!(res, Ok(Size::Bytes(200)));
+    assert_eq!(res, Ok(Size::Byte(200)));
 
     let res = parse_size(&mut "200w");
     assert_eq!(res, Ok(Size::Word(200)));
 
     let res = parse_size(&mut "200k");
-    assert_eq!(res, Ok(Size::KiloBytes(200)));
+    assert_eq!(res, Ok(Size::KiloByte(200)));
 
     let res = parse_size(&mut "200M");
-    assert_eq!(res, Ok(Size::MegaBytes(200)));
+    assert_eq!(res, Ok(Size::MegaByte(200)));
 
     let res = parse_size(&mut "200G");
-    assert_eq!(res, Ok(Size::GigaBytes(200)));
+    assert_eq!(res, Ok(Size::GigaByte(200)));
 
     let res = parse_size(&mut "200T");
-    assert_eq!(res, Ok(Size::TeraBytes(200)));
+    assert_eq!(res, Ok(Size::TeraByte(200)));
+}
+
+#[test]
+fn test_parse_size_error() {
+    let res = parse_size(&mut "not_a_size");
+    assert!(res.is_err());
 }
 
 #[test]

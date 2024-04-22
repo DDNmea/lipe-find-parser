@@ -12,12 +12,12 @@ pub enum TimeRecord<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Size {
     Block(u32),
-    Bytes(u32),
+    Byte(u32),
     Word(u32),
-    KiloBytes(u32),
-    MegaBytes(u32),
-    GigaBytes(u32),
-    TeraBytes(u32),
+    KiloByte(u32),
+    MegaByte(u32),
+    GigaByte(u32),
+    TeraByte(u32),
 }
 
 #[derive(Debug, Clone, PartialEq)]
