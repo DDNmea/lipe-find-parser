@@ -210,6 +210,7 @@ mod precedence {
     use std::rc::Rc;
     use winnow::combinator::{alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till};
     use winnow::error::{StrContext, StrContextValue};
+    use winnow::token::any;
     use winnow::{prelude::Parser, token::one_of, PResult};
 
     /// Precedence parser entry point
@@ -219,6 +220,7 @@ mod precedence {
             .parse_next(input)
             .map(|(list, _): (Vec<Exp>, _)| list)?;
 
+        // We unwrap here as the repeat_till ensures at least one expression is returned
         Ok(out.first().unwrap().to_owned())
     }
 
@@ -227,24 +229,40 @@ mod precedence {
     fn list(input: &mut &[Token]) -> PResult<Exp> {
         let init = or.parse_next(input)?;
 
-        repeat(0.., (one_of(Token::Comma), or))
-            .fold(
-                move || init.clone(),
-                |acc, (_, val): (Token, Exp)| Exp::Operator(Rc::new(Ope::List(acc, val))),
-            )
-            .parse_next(input)
+        repeat(
+            0..,
+            preceded(
+                one_of(Token::Comma),
+                cut_err(or).context(StrContext::Expected(StrContextValue::Description(
+                    "missing_list_clause",
+                ))),
+            ),
+        )
+        .fold(
+            move || init.clone(),
+            |acc, val| Exp::Operator(Rc::new(Ope::List(acc, val))),
+        )
+        .parse_next(input)
     }
 
     /// Higher priority than list, but not as high as Token::And. We parse either side first.
     fn or(input: &mut &[Token]) -> PResult<Exp> {
         let init = and.parse_next(input)?;
 
-        repeat(0.., preceded(one_of(Token::Or), and))
-            .fold(
-                move || init.clone(),
-                |acc, val| Exp::Operator(Rc::new(Ope::Or(acc, val))),
-            )
-            .parse_next(input)
+        repeat(
+            0..,
+            preceded(
+                one_of(Token::Or),
+                cut_err(and).context(StrContext::Expected(StrContextValue::Description(
+                    "missing_or_clause",
+                ))),
+            ),
+        )
+        .fold(
+            move || init.clone(),
+            |acc, val| Exp::Operator(Rc::new(Ope::Or(acc, val))),
+        )
+        .parse_next(input)
     }
 
     /// Highest priority operator. Surrounding it are atoms, and we attempt to parse them as such.
@@ -254,12 +272,23 @@ mod precedence {
         // awful awful awful readability but here we check for (Token::And, atom) first. In case we are
         // not so lucky try for atom again, at which point we have two atoms together and this means we
         // are blessed with the presence of an implicit and.
-        repeat(0.., alt((preceded(one_of(Token::And), atom), atom)))
-            .fold(
-                move || init.clone(),
-                |acc, val| Exp::Operator(Rc::new(Ope::And(acc, val))),
-            )
-            .parse_next(input)
+        repeat(
+            0..,
+            alt((
+                preceded(
+                    one_of(Token::And),
+                    cut_err(atom).context(StrContext::Expected(StrContextValue::Description(
+                        "missing_and_clause",
+                    ))),
+                ),
+                atom,
+            )),
+        )
+        .fold(
+            move || init.clone(),
+            |acc, val| Exp::Operator(Rc::new(Ope::And(acc, val))),
+        )
+        .parse_next(input)
     }
 
     /// Atom is either a null/un/binary directive, a negated atom, or an expression in parenthesis.
@@ -280,9 +309,12 @@ mod precedence {
             }),
             not,
             parens,
-            fail.context(StrContext::Expected(StrContextValue::Description(
-                "unexpected_token",
-            ))),
+            preceded(
+                any,
+                fail.context(StrContext::Expected(StrContextValue::Description(
+                    "unexpected_token",
+                ))),
+            ),
         ))
         .parse_next(input)
     }
