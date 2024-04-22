@@ -12,7 +12,7 @@ use winnow::{
     },
     error::{ContextError, StrContext, StrContextValue},
     prelude::*,
-    token::{literal, one_of, take_until, take_while},
+    token::{any, literal, one_of, take_until, take_while},
 };
 
 macro_rules! parse_type_into {
@@ -48,6 +48,12 @@ fn parse_comp(input: &mut &'_ str) -> PResult<Comparison> {
         preceded("+", parse_u32).map(Comparison::GreaterThan),
         preceded("-", parse_u32).map(Comparison::LesserThan),
         parse_u32.map(Comparison::Equal),
+        preceded(
+            any,
+            fail.context(StrContext::Expected(StrContextValue::Description(
+                "comparison_expression",
+            ))),
+        ),
     )))
     .context(StrContext::Label("comparison"))
     .parse_next(input)
@@ -197,9 +203,12 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         parse_action.map(Token::Action),
         parse_global_option.map(Token::Global),
         parse_positional.map(Token::Positional),
-        fail.context(StrContext::Expected(StrContextValue::Description(
-            "invalid_token",
-        ))),
+        preceded(
+            any,
+            fail.context(StrContext::Expected(StrContextValue::Description(
+                "invalid_token",
+            ))),
+        ),
     ))
     .context(StrContext::Label("token"))
     .parse_next(input)
