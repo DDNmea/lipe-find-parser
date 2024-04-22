@@ -206,15 +206,20 @@ pub fn token(input: &mut &str) -> PResult<Token> {
 }
 
 mod precedence {
-    use crate::winnow_find_tokenized::{Exp, Ope, Test, Token};
+    use crate::winnow_find_tokenized::{Comparison, Exp, Ope, Test, Token};
     use std::rc::Rc;
-    use winnow::combinator::{alt, cut_err, delimited, fail, preceded, repeat};
+    use winnow::combinator::{alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till};
     use winnow::error::{StrContext, StrContextValue};
     use winnow::{prelude::Parser, token::one_of, PResult};
 
     /// Precedence parser entry point
     pub fn parser(input: &mut &[Token]) -> PResult<Exp> {
-        list.context(StrContext::Label("grammar")).parse_next(input)
+        let out = repeat_till(1.., list, eof)
+            .context(StrContext::Label("grammar"))
+            .parse_next(input)
+            .map(|(list, _): (Vec<Exp>, _)| list)?;
+
+        Ok(out.first().unwrap().to_owned())
     }
 
     /// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
@@ -276,7 +281,7 @@ mod precedence {
             not,
             parens,
             fail.context(StrContext::Expected(StrContextValue::Description(
-                "invalid_syntax",
+                "unexpected_token",
             ))),
         ))
         .parse_next(input)
@@ -302,7 +307,7 @@ mod precedence {
                 "missing_expression",
             ))),
             cut_err(one_of(Token::RParen)).context(StrContext::Expected(
-                StrContextValue::Description("right_parenthesis"),
+                StrContextValue::Description("missing_closing_parenthesis"),
             )),
         )
         .context(StrContext::Label("parens"))
@@ -310,8 +315,19 @@ mod precedence {
     }
 
     #[test]
+    /// A naive implementation will create a parser unable to generate an error when extra tokens
+    /// are added to the command line. The parser works by repeatedly parsing each precedence
+    /// level, and knows when to stop when ErrMode::Backtrack is encountered. This leads to the
+    /// unability to parse extra tokens on the command line, as their presence would just stop the
+    /// parser. This test makes sure we handle such a case.
     fn test_parse_complete() {
-        let input = vec![Token::Test(Test::Name(String::from("test"))), Token::RParen];
+        // Equivalent to `-name test \) -uid 1000`. The parser used to see -name test, then stop
+        // when encountering the extra parenthesis, and ignore everything else.
+        let input = vec![
+            Token::Test(Test::Name(String::from("test"))),
+            Token::RParen,
+            Token::Test(Test::UserId(Comparison::Equal(1000))),
+        ];
         let res = parser(&mut input.as_slice());
         assert!(res.is_err());
     }
@@ -426,8 +442,8 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
         Err(e) => {
             let subject = e.clone();
             log::error!(
-                "Error parsing input: {} ({:?})",
-                parse_string.parse_peek(input)?.1,
+                "Error parsing input: `{}` ({:?})",
+                input,
                 subject.into_inner().unwrap().context().collect::<Vec<_>>()
             );
             Err(e)
