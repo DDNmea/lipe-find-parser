@@ -4,14 +4,10 @@ use crate::ast::{
     Test,
 };
 use crate::RunOptions;
-use std::rc::Rc;
 use winnow::{
-    ascii::{alpha1, digit1, multispace0, multispace1},
-    combinator::{
-        alt, cut_err, delimited, eof, fail, opt, preceded, repeat, repeat_till, separated_pair,
-        terminated,
-    },
-    error::{ContextError, StrContext, StrContextValue},
+    ascii::{digit1, multispace0, multispace1},
+    combinator::{alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till, terminated},
+    error::{StrContext, StrContextValue},
     prelude::*,
     token::{any, literal, one_of, take_until, take_while},
 };
