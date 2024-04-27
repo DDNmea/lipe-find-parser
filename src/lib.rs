@@ -1,4 +1,4 @@
-mod ast;
+pub mod ast;
 mod find_parser;
 mod scheme;
 
