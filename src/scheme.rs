@@ -256,7 +256,8 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, options: &crate::RunOptions, pat
     }
 
     format!(
-        "
+        "(use-modules (lipe) (lipe find))
+
 (let * ({})
   (dynamic-wind
     (lambda () {})
