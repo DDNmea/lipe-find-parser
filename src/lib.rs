@@ -1,9 +1,9 @@
 mod ast;
+mod find_parser;
 mod scheme;
-mod winnow_find_tokenized;
 
+pub use find_parser::parse;
 pub use scheme::compile;
-pub use winnow_find_tokenized::parse;
 
 /// Convenience struct to collect the options passed on the command line
 #[derive(Debug)]

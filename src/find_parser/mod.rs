@@ -1,4 +1,3 @@
-#![allow(unused_imports, dead_code)]
 use crate::ast::{
     Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Size,
     Test,
@@ -245,7 +244,9 @@ pub fn token(input: &mut &str) -> PResult<Token> {
 }
 
 mod precedence {
-    use crate::winnow_find_tokenized::{Comparison, Exp, Ope, Test, Token};
+    #[cfg(test)]
+    use crate::find_parser::{Comparison, Test};
+    use crate::find_parser::{Exp, Ope, Token};
     use std::rc::Rc;
     use winnow::combinator::{alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till};
     use winnow::error::{StrContext, StrContextValue};
