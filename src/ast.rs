@@ -9,38 +9,39 @@ pub enum TimeRecord<T> {
     Equal(T),
 }
 
+type SizeType = u64;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Size {
     /// 1 byte. Called character in find.
-    Byte(u32),
+    Byte(SizeType),
     /// 2 bytes
-    Word(u32),
+    Word(SizeType),
     /// 512 bytes
-    Block(u32),
+    Block(SizeType),
     /// 1024 bytes
-    KiloByte(u32),
-    MegaByte(u32),
-    GigaByte(u32),
-    TeraByte(u32),
+    KiloByte(SizeType),
+    MegaByte(SizeType),
+    GigaByte(SizeType),
+    TeraByte(SizeType),
 }
 
 /// Used to represent file sizes in tests
 impl Size {
     /// The size unit multiplier
-    pub fn mult(&self) -> u32 {
+    pub fn mult(&self) -> SizeType {
         match self {
-            Size::Byte(_) => 1u32,
-            Size::Word(_) => 2u32,
-            Size::Block(_) => 512u32,
-            Size::KiloByte(_) => 1024u32,
-            Size::MegaByte(_) => 1024 * 1024u32,
-            Size::GigaByte(_) => 1024 * 1024 * 1024u32,
-            Size::TeraByte(_) => 1024 * 1024 * 1024 * 1024u32,
+            Size::Byte(_) => 1,
+            Size::Word(_) => 2,
+            Size::Block(_) => 512,
+            Size::KiloByte(_) => 1024,
+            Size::MegaByte(_) => 1024 * 1024,
+            Size::GigaByte(_) => 1024 * 1024 * 1024,
+            Size::TeraByte(_) => 1024 * 1024 * 1024 * 1024,
         }
     }
 
     /// The amount of bytes of the described size
-    pub fn byte_size(&self) -> u32 {
+    pub fn byte_size(&self) -> SizeType {
         let (Size::Byte(s)
         | Size::Word(s)
         | Size::Block(s)

@@ -38,7 +38,23 @@ trait Parseable {
 
 impl Parseable for u32 {
     fn parse(input: &mut &str) -> PResult<u32> {
-        parse_u32(input)
+        digit1
+            .try_map(|digit_str: &str| digit_str.parse::<u32>())
+            .context(StrContext::Expected(StrContextValue::Description(
+                "unsigned_integer",
+            )))
+            .parse_next(input)
+    }
+}
+
+impl Parseable for u64 {
+    fn parse(input: &mut &str) -> PResult<u64> {
+        digit1
+            .try_map(|digit_str: &str| digit_str.parse::<u64>())
+            .context(StrContext::Expected(StrContextValue::Description(
+                "unsigned_integer",
+            )))
+            .parse_next(input)
     }
 }
 
@@ -82,7 +98,7 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
 
 fn parse_size(input: &mut &'_ str) -> PResult<Size> {
     alt((
-        (parse_u32, one_of(|c| "bcwkMGT".contains(c))).map(|(num, unit)| match unit {
+        (u64::parse, one_of(|c| "bcwkMGT".contains(c))).map(|(num, unit)| match unit {
             'b' => Size::Block(num),
             'c' => Size::Byte(num),
             'w' => Size::Word(num),
@@ -92,7 +108,7 @@ fn parse_size(input: &mut &'_ str) -> PResult<Size> {
             'T' => Size::TeraByte(num),
             _ => unreachable!(),
         }),
-        parse_u32.map(Size::Block),
+        u64::parse.map(Size::Block),
     ))
     .context(StrContext::Expected(StrContextValue::Description("size")))
     .parse_next(input)
@@ -526,13 +542,13 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
 
 #[test]
 fn test_parse_comparison_uint() -> Result<(), Box<dyn std::error::Error>> {
-    let res = parse_comp(&mut "44").unwrap();
+    let res = parse_comp::<u32>(&mut "44").unwrap();
     assert_eq!(Comparison::Equal(44), res);
 
-    let res = parse_comp(&mut "+44").unwrap();
+    let res = parse_comp::<u32>(&mut "+44").unwrap();
     assert_eq!(Comparison::GreaterThan(44), res);
 
-    let res = parse_comp(&mut "-44").unwrap();
+    let res = parse_comp::<u32>(&mut "-44").unwrap();
     assert_eq!(Comparison::LesserThan(44), res);
 
     Ok(())
