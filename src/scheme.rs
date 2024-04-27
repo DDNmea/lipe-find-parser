@@ -240,7 +240,12 @@ impl Scheme for Expression {
     }
 }
 
-pub fn compile<S: AsRef<str>>(exp: &Expression, options: &crate::RunOptions, path: S) -> String {
+/// Returns a closure that will return the code needed to parse an MDT when given a path towards
+/// this MDT. This allows to compile an expression once and insert the MDT path after the fact
+pub fn compile<S: AsRef<str>>(
+    exp: &Expression,
+    options: &crate::RunOptions,
+) -> impl Fn(S) -> String {
     let mut buffer = String::new();
     let mut manager = SchemeManager::default();
 
@@ -255,8 +260,13 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, options: &crate::RunOptions, pat
         exp.compile(&mut buffer, &mut manager);
     }
 
-    format!(
-        "(use-modules (lipe) (lipe find))
+    let options = options
+        .threads
+        .and_then(|c| Some(c.to_string()))
+        .unwrap_or(String::from("(lipe-getopt-thread-count)"));
+    move |mdt: S| {
+        format!(
+            "(use-modules (lipe) (lipe find))
 
 (let * ({})
   (dynamic-wind
@@ -268,14 +278,12 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, options: &crate::RunOptions, pat
         (lipe-getopt-required-attrs)
         {}))
     (lambda () {})))",
-        manager.vars(),
-        manager.init(),
-        path.as_ref(),
-        buffer,
-        options
-            .threads
-            .and_then(|c| Some(c.to_string()))
-            .unwrap_or(String::from("(lipe-getopt-thread-count)")),
-        manager.fini(),
-    )
+            manager.vars(),
+            manager.init(),
+            mdt.as_ref(),
+            buffer,
+            options,
+            manager.fini(),
+        )
+    }
 }
