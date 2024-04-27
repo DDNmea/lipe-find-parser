@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::ast::{Action, Comparison, Expression, Operator, PositionalOption, Test};
+use crate::ast::{Action, Comparison, Expression, Operator, PositionalOption, Size, Test};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -124,6 +124,30 @@ impl Expression {
     }
 }
 
+fn size_matching(size: &Size) -> String {
+    match size {
+        Size::Byte(_) => String::from("size"),
+        Size::Word(_)
+        | Size::Block(_)
+        | Size::KiloByte(_)
+        | Size::MegaByte(_)
+        | Size::GigaByte(_)
+        | Size::TeraByte(_) => format!("round-up-power-of-2 (size) {}", size.mult()),
+    }
+}
+
+fn compile_size_comp(buffer: &mut String, comp: &Comparison<Size>) {
+    let (Comparison::GreaterThan(s) | Comparison::LesserThan(s) | Comparison::Equal(s)) = comp;
+
+    let exp = match comp {
+        Comparison::GreaterThan(n) => format!("(> ({}) {})", size_matching(n), n.byte_size()),
+        Comparison::LesserThan(n) => format!("(< ({}) {})", size_matching(n), n.byte_size()),
+        Comparison::Equal(n) => format!("(= ({}) {})", size_matching(n), n.byte_size()),
+    };
+
+    buffer.push_str(&exp);
+}
+
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
@@ -136,6 +160,7 @@ impl Scheme for Test {
                 buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
             }
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            Test::Size(cmp) => compile_size_comp(buffer, &cmp),
             #[cfg(debug_assertions)]
             _ => buffer.push_str("(UNIMPLEMENTED)"),
             #[cfg(not(debug_assertions))]
@@ -231,7 +256,8 @@ pub fn compile<S: AsRef<str>>(exp: &Expression, options: &crate::RunOptions, pat
     }
 
     format!(
-        "(let * ({})
+        "
+(let * ({})
   (dynamic-wind
     (lambda () {})
     (lambda () (lipe-scan

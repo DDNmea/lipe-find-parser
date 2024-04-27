@@ -11,13 +11,46 @@ pub enum TimeRecord<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Size {
-    Block(u32),
+    /// 1 byte. Called character in find.
     Byte(u32),
+    /// 2 bytes
     Word(u32),
+    /// 512 bytes
+    Block(u32),
+    /// 1024 bytes
     KiloByte(u32),
     MegaByte(u32),
     GigaByte(u32),
     TeraByte(u32),
+}
+
+/// Used to represent file sizes in tests
+impl Size {
+    /// The size unit multiplier
+    pub fn mult(&self) -> u32 {
+        match self {
+            Size::Byte(_) => 1u32,
+            Size::Word(_) => 2u32,
+            Size::Block(_) => 512u32,
+            Size::KiloByte(_) => 1024u32,
+            Size::MegaByte(_) => 1024 * 1024u32,
+            Size::GigaByte(_) => 1024 * 1024 * 1024u32,
+            Size::TeraByte(_) => 1024 * 1024 * 1024 * 1024u32,
+        }
+    }
+
+    /// The amount of bytes of the described size
+    pub fn byte_size(&self) -> u32 {
+        let (Size::Byte(s)
+        | Size::Word(s)
+        | Size::Block(s)
+        | Size::KiloByte(s)
+        | Size::MegaByte(s)
+        | Size::GigaByte(s)
+        | Size::TeraByte(s)) = self;
+
+        s * self.mult()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
