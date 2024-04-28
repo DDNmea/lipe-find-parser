@@ -14,6 +14,14 @@ macro_rules! format_cmp {
             Comparison::Equal(n) => format!("(= ({}) {})", $target, n),
         }
     };
+
+    ($cmp:expr, $lhs:expr, $rhs:expr) => {
+        match $cmp {
+            Comparison::GreaterThan(n) => format!("(> ({}) {})", $lhs(n), $rhs(n)),
+            Comparison::LesserThan(n) => format!("(< ({}) {})", $lhs(n), $rhs(n)),
+            Comparison::Equal(n) => format!("(= ({}) {})", $lhs(n), $rhs(n)),
+        }
+    };
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,18 +173,22 @@ fn size_matching(size: &Size) -> String {
 }
 
 fn compile_size_comp(buffer: &mut String, comp: &Comparison<Size>) {
-    let (Comparison::GreaterThan(s) | Comparison::LesserThan(s) | Comparison::Equal(s)) = comp;
-
-    let exp = match comp {
-        Comparison::GreaterThan(n) => format!("(> ({}) {})", size_matching(n), n.byte_size()),
-        Comparison::LesserThan(n) => format!("(< ({}) {})", size_matching(n), n.byte_size()),
-        Comparison::Equal(n) => format!("(= ({}) {})", size_matching(n), n.byte_size()),
-    };
-
-    buffer.push_str(&exp);
+    buffer.push_str(&format_cmp!(comp, size_matching, Size::byte_size));
 }
 
-fn compile_time_comp(buffer: &mut String, comp: &Comparison<TimeSpec>) {}
+fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpec>) {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let quotient = move |t: &TimeSpec| format!("quotient (- {secs} ({field})) {}", t.secs());
+    let count = |t: &TimeSpec| {
+        let (TimeSpec::Second(s) | TimeSpec::Minute(s) | TimeSpec::Hour(s) | TimeSpec::Day(s)) = t;
+        s.clone()
+    };
+
+    buffer.push_str(&format_cmp!(comp, quotient, count));
+}
 
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
@@ -186,25 +198,16 @@ impl Scheme for Test {
             Test::Empty => buffer.push_str("(empty)"),
             Test::Executable => buffer.push_str("(executable)"),
             Test::Writable => buffer.push_str("(writable)"),
-            Test::Name(s) => buffer.push_str(&format!(
-                "(call-with-name %lf3:match:{})",
-                ctx.register_strcmp(s)
-            )),
-            Test::InsensitiveName(s) => buffer.push_str(&format!(
-                "(call-with-name %lf3:match:{})",
-                ctx.register_ci_strcmp(s)
-            )),
-            Test::Path(s) => buffer.push_str(&format!(
-                "(call-with-relative-path %lf3:match:{})",
-                ctx.register_strcmp(s)
-            )),
-            Test::InsensitivePath(s) => buffer.push_str(&format!(
-                "(call-with-relative-path %lf3:match:{})",
-                ctx.register_ci_strcmp(s)
-            )),
+            Test::Name(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_strcmp(s))),
+            Test::InsensitiveName(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_ci_strcmp(s))),
+            Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_strcmp(s))),
+            Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_ci_strcmp(s))),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::GroupId(cmp) => buffer.push_str(&format_cmp!(cmp, "gid")),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
+            Test::AccessMin(cmp) | Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
+            Test::ModifyMin(cmp) | Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
+            Test::ChangeMin(cmp) | Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
 
             // The following are tests defined by GNU find that are not supported either by LiPE or
             // exfind
@@ -215,6 +218,7 @@ impl Scheme for Test {
             | Test::InsensitiveLinkName(_) // LiPE support
             | Test::User(_) // exfind - we need to figure out what the uid on the remote host is
             | Test::Group(_) // exfind - we need to figure out what the remote gid is
+
             => {
                 log::error!("You have used a test that is not supported by this program.");
                 todo!()

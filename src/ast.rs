@@ -2,13 +2,6 @@
 
 use std::rc::Rc;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum TimeRecord<T> {
-    GreaterThan(T),
-    LesserThan(T),
-    Equal(T),
-}
-
 type SizeType = u64;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Size {
@@ -60,6 +53,17 @@ pub enum TimeSpec {
     Minute(SizeType),
     Hour(SizeType),
     Day(SizeType),
+}
+
+impl TimeSpec {
+    pub fn secs(&self) -> SizeType {
+        match self {
+            TimeSpec::Second(_) => 1,
+            TimeSpec::Minute(_) => 60,
+            TimeSpec::Hour(_) => 60 * 60,
+            TimeSpec::Day(_) => 24 * 60 * 60,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
