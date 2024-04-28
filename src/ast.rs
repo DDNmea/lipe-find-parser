@@ -78,12 +78,13 @@ pub enum Test {
     FsType(String),
     GroupId(Comparison<u32>),
     Group(String),
-    InsensitiveLinkName(String), //TODO Pattern
-    InsensitiveName(String),     //TODO Pattern
+    InsensitiveLinkName(String),
+    InsensitiveName(String),
     InodeNumber(Comparison<u32>),
     InsensitivePath(String),
     InsensitiveRegex(String),
     Hardlinks(u32),
+    LinkName(String),
     ModifyMin(Comparison<u32>),
     ModifyNewer(String),
     ModifyTime(Comparison<u32>),

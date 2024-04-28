@@ -180,6 +180,7 @@ impl Scheme for Test {
             Test::False => buffer.push_str("#f"),
             Test::True => buffer.push_str("#t"),
             Test::Empty => buffer.push_str("(empty)"),
+            Test::Executable => buffer.push_str("(executable)"),
             Test::Writable => buffer.push_str("(writable)"),
             Test::Name(s) => buffer.push_str(&format!(
                 "(call-with-name %lf3:match:{})",
@@ -198,7 +199,23 @@ impl Scheme for Test {
                 ctx.register_ci_strcmp(s)
             )),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            Test::GroupId(cmp) => buffer.push_str(&format_cmp!(cmp, "gid")),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
+
+            // The following are tests defined by GNU find that are not supported either by LiPE or
+            // exfind
+            Test::AccessNewer(_) // LiPE support
+            | Test::ChangeNewer(_) // LiPE support
+            | Test::ModifyNewer(_) // LiPE support
+            | Test::LinkName(_) // LiPE support
+            | Test::InsensitiveLinkName(_) // LiPE support
+            | Test::User(_) // exfind - we need to figure out what the uid on the remote host is
+            | Test::Group(_) // exfind - we need to figure out what the remote gid is
+            => {
+                log::error!("You have used a test that is not supported by this program.");
+                todo!()
+            }
+
             #[cfg(debug_assertions)]
             _ => buffer.push_str("(UNIMPLEMENTED)"),
             #[cfg(not(debug_assertions))]
