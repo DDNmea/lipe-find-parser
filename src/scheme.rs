@@ -37,16 +37,42 @@ impl Default for SchemeManager {
     }
 }
 
+fn is_pattern(input: &str) -> bool {
+    input.contains('?') | input.contains('*') | input.contains('[')
+}
+
 impl SchemeManager {
-    /// Record a string to compare to later in the program. The manager will keep track of the
-    /// recorded strings and associate a unique index to each. They will correspond to match
-    /// functions in the final LISP code.
-    fn register_streq<S: AsRef<str>>(&mut self, cmp: S) -> usize {
+    /// This method will record a string matching operation and create a function for it in the
+    /// initialization of the program. If the given string is detected to be a patter, the fnmatch
+    /// function will be used to compare the strings, else the streq function will be used.
+    fn register_strcmp<S: AsRef<str>>(&mut self, cmp: S) -> usize {
+        let matcher = if is_pattern(cmp.as_ref()) {
+            "fnmatch"
+        } else {
+            "streq"
+        };
+
+        self.register_str_match(matcher, cmp.as_ref())
+    }
+
+    /// This method operates the same way as the above for case insensitive matches, using either
+    /// fnmatch-ci or streq-ci
+    fn register_ci_strcmp<S: AsRef<str>>(&mut self, cmp: S) -> usize {
+        let matcher = if is_pattern(cmp.as_ref()) {
+            "fnmatch-ci"
+        } else {
+            "streq-ci"
+        };
+
+        self.register_str_match(matcher, cmp.as_ref())
+    }
+
+    /// Internal function used by register_*strcmp
+    fn register_str_match(&mut self, matcher: &str, string: &str) -> usize {
         self.vars.push(format!(
-            "(%lf3:match:{} (lambda (%lf3:str:{}) (streq? \"{}\" %lf3:str:{})))",
+            "(%lf3:match:{} (lambda (%lf3:str:{}) ({matcher}? \"{string}\" %lf3:str:{})))",
             self.var_index + 1,
             self.var_index,
-            cmp.as_ref(),
             self.var_index
         ));
 
@@ -155,10 +181,22 @@ impl Scheme for Test {
             Test::True => buffer.push_str("#t"),
             Test::Empty => buffer.push_str("(empty)"),
             Test::Writable => buffer.push_str("(writable)"),
-            Test::Name(s) => {
-                let match_ref = ctx.register_streq(s);
-                buffer.push_str(&format!("(call-with-name %lf3:match:{})", match_ref))
-            }
+            Test::Name(s) => buffer.push_str(&format!(
+                "(call-with-name %lf3:match:{})",
+                ctx.register_strcmp(s)
+            )),
+            Test::InsensitiveName(s) => buffer.push_str(&format!(
+                "(call-with-name %lf3:match:{})",
+                ctx.register_ci_strcmp(s)
+            )),
+            Test::Path(s) => buffer.push_str(&format!(
+                "(call-with-relative-path %lf3:match:{})",
+                ctx.register_strcmp(s)
+            )),
+            Test::InsensitivePath(s) => buffer.push_str(&format!(
+                "(call-with-relative-path %lf3:match:{})",
+                ctx.register_ci_strcmp(s)
+            )),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
             #[cfg(debug_assertions)]
