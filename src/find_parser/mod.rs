@@ -77,9 +77,16 @@ impl Parseable for Size {
                 'T' => Size::TeraByte(num),
                 _ => unreachable!(),
             }),
+            // Not very pretty, we check for a [0-9]+[a-z]+ and if met then fail with the proper
+            // error. We do this once all the valid specs have been checked but before we attempt a
+            // specless parse, doing so would end up leaving some junk in the input
+            terminated(digit1, alpha1).and_then(cut_err(fail.context(StrContext::Expected(
+                StrContextValue::Description("invalid_size_specifier"),
+            )))),
+            // Default. For Size this is Block
             u64::parse.map(Size::Block),
         ))
-        .context(StrContext::Expected(StrContextValue::Description("size")))
+        .context(StrContext::Label("size"))
         .parse_next(input)
     }
 }
@@ -94,11 +101,14 @@ impl DefaultParseable<u64> for TimeSpec {
                 'd' => TimeSpec::Day(num),
                 _ => unreachable!(),
             }),
+            // Same as above
+            terminated(digit1, alpha1).and_then(cut_err(fail.context(StrContext::Expected(
+                StrContextValue::Description("invalid_time_specifier"),
+            )))),
+            // Here the default is the user-defined closure given as an argument
             u64::parse.map(default),
         ))
-        .context(StrContext::Expected(StrContextValue::Description(
-            "timespec",
-        )))
+        .context(StrContext::Label("timespec"))
         .parse_next(input)
     }
 }
