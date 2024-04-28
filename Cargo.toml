@@ -7,3 +7,6 @@ authors = ["JB <jb.skutnik@gmail.com>"]
 [dependencies]
 log = "0.4.21"
 winnow = "0.6.5"
+
+[dev-dependencies]
+simple_logger = "4.3.3"
