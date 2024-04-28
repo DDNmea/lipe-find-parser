@@ -42,7 +42,7 @@ impl RunOptions {
 mod parsing {
     use crate::ast::{
         Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption,
-        Test,
+        Test, TimeSpec,
     };
     use crate::parse;
     use std::rc::Rc;
@@ -50,7 +50,10 @@ mod parsing {
     #[test]
     fn test_parse_test() {
         let (_, exp) = parse("-amin 44").unwrap();
-        assert_eq!(Exp::Test(Test::AccessMin(Comparison::Equal(44))), exp);
+        assert_eq!(
+            Exp::Test(Test::AccessMin(Comparison::Equal(TimeSpec::Minute(44)))),
+            exp
+        );
 
         let (_, exp) = parse("-true").unwrap();
         assert_eq!(Exp::Test(Test::True), exp);

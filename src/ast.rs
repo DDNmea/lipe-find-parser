@@ -55,6 +55,14 @@ impl Size {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum TimeSpec {
+    Second(SizeType),
+    Minute(SizeType),
+    Hour(SizeType),
+    Day(SizeType),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Comparison<T> {
     GreaterThan(T),
     LesserThan(T),
@@ -66,12 +74,12 @@ pub enum Type {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
-    AccessMin(Comparison<u32>),
+    AccessMin(Comparison<TimeSpec>),
     AccessNewer(String),
-    AccessTime(Comparison<u32>),
-    ChangeMin(Comparison<u32>),
+    AccessTime(Comparison<TimeSpec>),
+    ChangeMin(Comparison<TimeSpec>),
     ChangeNewer(String),
-    ChangeTime(Comparison<u32>),
+    ChangeTime(Comparison<TimeSpec>),
     Empty,
     Executable,
     False,
@@ -85,9 +93,9 @@ pub enum Test {
     InsensitiveRegex(String),
     Hardlinks(u32),
     LinkName(String),
-    ModifyMin(Comparison<u32>),
+    ModifyMin(Comparison<TimeSpec>),
     ModifyNewer(String),
-    ModifyTime(Comparison<u32>),
+    ModifyTime(Comparison<TimeSpec>),
     Name(String),
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     NoGroup,

@@ -1,6 +1,6 @@
 use crate::ast::{
     Action, Comparison, Expression as Exp, GlobalOption, Operator as Ope, PositionalOption, Size,
-    Test,
+    Test, TimeSpec,
 };
 use crate::RunOptions;
 use winnow::{
@@ -36,6 +36,12 @@ trait Parseable {
         Self: Sized;
 }
 
+trait DefaultParseable<S> {
+    fn parse(input: &mut &str, default: impl Fn(S) -> Self) -> PResult<Self>
+    where
+        Self: Sized;
+}
+
 impl Parseable for u32 {
     fn parse(input: &mut &str) -> PResult<u32> {
         digit1
@@ -60,30 +66,96 @@ impl Parseable for u64 {
 
 impl Parseable for Size {
     fn parse(input: &mut &str) -> PResult<Size> {
-        parse_size(input)
+        alt((
+            (u64::parse, one_of(|c| "bcwkMGT".contains(c))).map(|(num, unit)| match unit {
+                'b' => Size::Block(num),
+                'c' => Size::Byte(num),
+                'w' => Size::Word(num),
+                'k' => Size::KiloByte(num),
+                'M' => Size::MegaByte(num),
+                'G' => Size::GigaByte(num),
+                'T' => Size::TeraByte(num),
+                _ => unreachable!(),
+            }),
+            u64::parse.map(Size::Block),
+        ))
+        .context(StrContext::Expected(StrContextValue::Description("size")))
+        .parse_next(input)
     }
 }
 
-fn parse_u32(i: &mut &'_ str) -> PResult<u32> {
-    digit1
-        .try_map(|digit_str: &str| digit_str.parse::<u32>())
+impl DefaultParseable<u64> for TimeSpec {
+    fn parse(input: &mut &str, default: impl Fn(u64) -> TimeSpec) -> PResult<TimeSpec> {
+        alt((
+            (u64::parse, one_of(|c| "smhd".contains(c))).map(|(num, unit)| match unit {
+                's' => TimeSpec::Second(num),
+                'm' => TimeSpec::Minute(num),
+                'h' => TimeSpec::Hour(num),
+                'd' => TimeSpec::Day(num),
+                _ => unreachable!(),
+            }),
+            u64::parse.map(default),
+        ))
         .context(StrContext::Expected(StrContextValue::Description(
-            "unsigned_integer",
+            "timespec",
         )))
-        .parse_next(i)
+        .parse_next(input)
+    }
 }
 
-fn parse_comp<T>(input: &mut &'_ str) -> PResult<Comparison<T>>
+struct MinDefault(TimeSpec);
+
+impl Parseable for MinDefault {
+    fn parse(input: &mut &str) -> PResult<MinDefault> {
+        Ok(MinDefault(TimeSpec::parse(input, TimeSpec::Minute)?))
+    }
+}
+
+impl Into<TimeSpec> for MinDefault {
+    fn into(self) -> TimeSpec {
+        self.0
+    }
+}
+
+struct DayDefault(TimeSpec);
+
+impl Parseable for DayDefault {
+    fn parse(input: &mut &str) -> PResult<DayDefault> {
+        Ok(DayDefault(TimeSpec::parse(input, TimeSpec::Day)?))
+    }
+}
+
+impl Into<TimeSpec> for DayDefault {
+    fn into(self) -> TimeSpec {
+        self.0
+    }
+}
+
+fn parse_comp_format<Typ, Def>(input: &mut &'_ str) -> PResult<Comparison<Typ>>
 where
-    T: Parseable,
+    Def: Parseable,
+    Def: Into<Typ>,
 {
-    cut_err(alt((
-        preceded("+", T::parse).map(Comparison::GreaterThan),
-        preceded("-", T::parse).map(Comparison::LesserThan),
-        cut_err(T::parse).map(Comparison::Equal),
+    let outer = cut_err(alt((
+        preceded("+", Def::parse).map(Comparison::GreaterThan),
+        preceded("-", Def::parse).map(Comparison::LesserThan),
+        cut_err(Def::parse).map(Comparison::Equal),
     )))
     .context(StrContext::Label("comparison"))
-    .parse_next(input)
+    .parse_next(input)?;
+
+    match outer {
+        Comparison::Equal(p) => Ok(Comparison::Equal(p.into())),
+        Comparison::GreaterThan(p) => Ok(Comparison::GreaterThan(p.into())),
+        Comparison::LesserThan(p) => Ok(Comparison::LesserThan(p.into())),
+    }
+}
+
+fn parse_comp<P>(input: &mut &'_ str) -> PResult<Comparison<P>>
+where
+    P: Parseable,
+{
+    parse_comp_format::<P, P>(input)
 }
 
 fn parse_string(input: &mut &'_ str) -> PResult<String> {
@@ -96,30 +168,12 @@ fn parse_string(input: &mut &'_ str) -> PResult<String> {
     .parse_next(input)
 }
 
-fn parse_size(input: &mut &'_ str) -> PResult<Size> {
-    alt((
-        (u64::parse, one_of(|c| "bcwkMGT".contains(c))).map(|(num, unit)| match unit {
-            'b' => Size::Block(num),
-            'c' => Size::Byte(num),
-            'w' => Size::Word(num),
-            'k' => Size::KiloByte(num),
-            'M' => Size::MegaByte(num),
-            'G' => Size::GigaByte(num),
-            'T' => Size::TeraByte(num),
-            _ => unreachable!(),
-        }),
-        u64::parse.map(Size::Block),
-    ))
-    .context(StrContext::Expected(StrContextValue::Description("size")))
-    .parse_next(input)
-}
-
 pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
     alt((
         literal("-depth").value(GlobalOption::Depth),
-        parse_unary_pretty!("-maxdepth", GlobalOption::MaxDepth, parse_u32),
-        parse_unary_pretty!("-mindepth", GlobalOption::MinDepth, parse_u32),
-        parse_unary_pretty!("-threads", GlobalOption::Threads, parse_u32),
+        parse_unary_pretty!("-maxdepth", GlobalOption::MaxDepth, u32::parse),
+        parse_unary_pretty!("-mindepth", GlobalOption::MinDepth, u32::parse),
+        parse_unary_pretty!("-threads", GlobalOption::Threads, u32::parse),
     ))
     .context(StrContext::Label("global_option"))
     .parse_next(input)
@@ -152,12 +206,28 @@ pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
 pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     alt((
         alt((
-            parse_type_into!("-amin", Test::AccessMin, parse_comp::<u32>),
+            parse_type_into!(
+                "-amin",
+                Test::AccessMin,
+                parse_comp_format::<TimeSpec, MinDefault>
+            ),
             parse_type_into!("-anewer", Test::AccessNewer, parse_string),
-            parse_type_into!("-atime", Test::AccessTime, parse_comp::<u32>),
-            parse_type_into!("-cmin", Test::ChangeMin, parse_comp::<u32>),
+            parse_type_into!(
+                "-atime",
+                Test::AccessTime,
+                parse_comp_format::<TimeSpec, DayDefault>
+            ),
+            parse_type_into!(
+                "-cmin",
+                Test::ChangeMin,
+                parse_comp_format::<TimeSpec, MinDefault>
+            ),
             parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
-            parse_type_into!("-ctime", Test::ChangeTime, parse_comp::<u32>),
+            parse_type_into!(
+                "-ctime",
+                Test::ChangeTime,
+                parse_comp_format::<TimeSpec, DayDefault>
+            ),
             literal("-empty").value(Test::Empty),
             literal("-executable").value(Test::Executable),
             literal("-false").value(Test::False),
@@ -169,10 +239,18 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             parse_type_into!("-inum", Test::InodeNumber, parse_comp::<u32>),
             parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
             parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
-            parse_type_into!("-links", Test::Hardlinks, parse_u32),
-            parse_type_into!("-mmin", Test::ModifyMin, parse_comp::<u32>),
+            parse_type_into!("-links", Test::Hardlinks, u32::parse),
+            parse_type_into!(
+                "-mmin",
+                Test::ModifyMin,
+                parse_comp_format::<TimeSpec, MinDefault>
+            ),
             parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
-            parse_type_into!("-mtime", Test::ModifyTime, parse_comp::<u32>),
+            parse_type_into!(
+                "-mtime",
+                Test::ModifyTime,
+                parse_comp_format::<TimeSpec, DayDefault>
+            ),
         )),
         alt((
             parse_type_into!("-name", Test::Name, parse_string),
@@ -582,34 +660,67 @@ fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_parse_size() {
-    let res = parse_size(&mut "20");
+    let res = Size::parse(&mut "20");
     assert_eq!(res, Ok(Size::Block(20)));
 
-    let res = parse_size(&mut "20b");
+    let res = Size::parse(&mut "20b");
     assert_eq!(res, Ok(Size::Block(20)));
 
-    let res = parse_size(&mut "200c");
+    let res = Size::parse(&mut "200c");
     assert_eq!(res, Ok(Size::Byte(200)));
 
-    let res = parse_size(&mut "200w");
+    let res = Size::parse(&mut "200w");
     assert_eq!(res, Ok(Size::Word(200)));
 
-    let res = parse_size(&mut "200k");
+    let res = Size::parse(&mut "200k");
     assert_eq!(res, Ok(Size::KiloByte(200)));
 
-    let res = parse_size(&mut "200M");
+    let res = Size::parse(&mut "200M");
     assert_eq!(res, Ok(Size::MegaByte(200)));
 
-    let res = parse_size(&mut "200G");
+    let res = Size::parse(&mut "200G");
     assert_eq!(res, Ok(Size::GigaByte(200)));
 
-    let res = parse_size(&mut "200T");
+    let res = Size::parse(&mut "200T");
     assert_eq!(res, Ok(Size::TeraByte(200)));
 }
 
 #[test]
+fn test_parse_time() {
+    let res = TimeSpec::parse(&mut "20s", TimeSpec::Day);
+    assert_eq!(res, Ok(TimeSpec::Second(20)));
+
+    let res = TimeSpec::parse(&mut "20m", TimeSpec::Day);
+    assert_eq!(res, Ok(TimeSpec::Minute(20)));
+
+    let res = TimeSpec::parse(&mut "20h", TimeSpec::Day);
+    assert_eq!(res, Ok(TimeSpec::Hour(20)));
+
+    let res = TimeSpec::parse(&mut "20d", TimeSpec::Day);
+    assert_eq!(res, Ok(TimeSpec::Day(20)));
+
+    let res = TimeSpec::parse(&mut "20", TimeSpec::Day);
+    assert_eq!(res, Ok(TimeSpec::Day(20)));
+
+    let res = TimeSpec::parse(&mut "20", TimeSpec::Hour);
+    assert_eq!(res, Ok(TimeSpec::Hour(20)));
+}
+
+#[test]
+fn test_parse_comparison_format() {
+    let res = parse_comp_format::<TimeSpec, MinDefault>(&mut "20s");
+    assert_eq!(res, Ok(Comparison::Equal(TimeSpec::Second(20))));
+
+    let res = parse_comp_format::<TimeSpec, MinDefault>(&mut "+20");
+    assert_eq!(res, Ok(Comparison::GreaterThan(TimeSpec::Minute(20))));
+
+    let res = parse_comp_format::<TimeSpec, DayDefault>(&mut "-20");
+    assert_eq!(res, Ok(Comparison::LesserThan(TimeSpec::Day(20))));
+}
+
+#[test]
 fn test_parse_size_error() {
-    let res = parse_size(&mut "not_a_size");
+    let res = Size::parse(&mut "not_a_size");
     assert!(res.is_err());
 }
 
@@ -624,7 +735,9 @@ fn test_token() {
     let res = token(&mut "-atime 77");
     assert_eq!(
         res,
-        Ok(Token::Test(Test::AccessTime(Comparison::Equal(77))))
+        Ok(Token::Test(Test::AccessTime(Comparison::Equal(
+            TimeSpec::Day(77)
+        ))))
     );
 
     for (operator, expected_token) in vec![
@@ -691,7 +804,9 @@ fn test_lex() {
     let res = lex(&mut "-atime 77").unwrap();
     assert_eq!(
         res,
-        vec![Token::Test(Test::AccessTime(Comparison::Equal(77)))]
+        vec![Token::Test(Test::AccessTime(Comparison::Equal(
+            TimeSpec::Day(77)
+        )))]
     );
 
     let res = lex(&mut "! -atime 77 ( -name test )").unwrap();
@@ -699,7 +814,7 @@ fn test_lex() {
         res,
         vec![
             Token::Not,
-            Token::Test(Test::AccessTime(Comparison::Equal(77))),
+            Token::Test(Test::AccessTime(Comparison::Equal(TimeSpec::Day(77)))),
             Token::LParen,
             Token::Test(Test::Name(String::from("test"))),
             Token::RParen,

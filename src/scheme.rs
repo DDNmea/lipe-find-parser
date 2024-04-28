@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::ast::{Action, Comparison, Expression, Operator, PositionalOption, Size, Test};
+use crate::ast::{
+    Action, Comparison, Expression, Operator, PositionalOption, Size, Test, TimeSpec,
+};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -174,6 +176,8 @@ fn compile_size_comp(buffer: &mut String, comp: &Comparison<Size>) {
     buffer.push_str(&exp);
 }
 
+fn compile_time_comp(buffer: &mut String, comp: &Comparison<TimeSpec>) {}
+
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
@@ -287,10 +291,8 @@ impl Scheme for Expression {
             Expression::Test(t) => t.compile(buffer, ctx),
             Expression::Action(a) => a.compile(buffer, ctx),
             Expression::Operator(o) => o.as_ref().compile(buffer, ctx),
-            #[cfg(debug_assertions)]
-            _ => buffer.push_str("(UNIMPLEMENTED)"),
-            #[cfg(not(debug_assertions))]
-            _ => todo!(),
+            Expression::Positional(p) => p.compile(buffer, ctx),
+            Expression::Global(_) => unreachable!(),
         }
     }
 }
