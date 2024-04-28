@@ -4,38 +4,42 @@ use crate::ast::{
 };
 use crate::RunOptions;
 use winnow::{
-    ascii::{digit1, multispace0, multispace1},
+    ascii::{alpha1, digit1, multispace0, multispace1},
     combinator::{alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till, terminated},
     error::{StrContext, StrContextValue},
     prelude::*,
     token::{any, literal, one_of, take_until, take_while},
 };
 
-macro_rules! parse_type_into {
-    ($tag:expr, $target:expr, $parser:expr) => {
-        preceded($tag, cut_err(preceded(multispace1, $parser)))
-            .context(StrContext::Label($tag))
-            .map($target)
+/// Parse a unary operator with the provided methods
+///
+/// [$identifier] is the command line identifier for the unary operator, [$transform]
+/// is a method to apply to the result of [$parser]. Whitespace between the two elements is
+/// automatically discarded.
+///
+/// The matched command line can be expressed as the following regex:
+/// ```text
+/// $tag\s+$parser
+/// ```
+///
+/// On error the context will contain a label with the provided identifier.
+macro_rules! unary {
+    ($identifier:expr, $transform:expr, $parser:expr) => {
+        preceded($identifier, cut_err(preceded(multispace1, $parser)))
+            .context(StrContext::Label($identifier))
+            .map($transform)
     };
 }
 
-macro_rules! parse_unary_pretty {
-    ($unary:expr, $target:expr, $expected:expr) => {
-        preceded(
-            $unary,
-            cut_err(preceded(multispace1, $expected))
-                .context(StrContext::Label($unary))
-                .map($target),
-        )
-    };
-}
-
+/// Trait used to add the ability to parse arbitrary types
 trait Parseable {
     fn parse(input: &mut &str) -> PResult<Self>
     where
         Self: Sized;
 }
 
+/// Trait used to add the ability to parse arbitrary types, with a second argument called in case a
+/// default categorization is needed
 trait DefaultParseable<S> {
     fn parse(input: &mut &str, default: impl Fn(S) -> Self) -> PResult<Self>
     where
@@ -61,6 +65,18 @@ impl Parseable for u64 {
                 "unsigned_integer",
             )))
             .parse_next(input)
+    }
+}
+
+impl Parseable for String {
+    fn parse(input: &mut &str) -> PResult<String> {
+        alt((
+            delimited("'", take_until(0.., "'"), "'"),
+            take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+        ))
+        .context(StrContext::Expected(StrContextValue::Description("string")))
+        .map(String::from)
+        .parse_next(input)
     }
 }
 
@@ -113,6 +129,8 @@ impl DefaultParseable<u64> for TimeSpec {
     }
 }
 
+/// Helper struct wrapping [TimeSpec] that when parsed will contain a value defaulting in
+/// [TimeSpec::Minute].
 struct MinDefault(TimeSpec);
 
 impl Parseable for MinDefault {
@@ -127,6 +145,8 @@ impl Into<TimeSpec> for MinDefault {
     }
 }
 
+/// Helper struct wrapping [TimeSpec] that when parsed will contain a value defaulting in
+/// [TimeSpec::Day].
 struct DayDefault(TimeSpec);
 
 impl Parseable for DayDefault {
@@ -168,22 +188,12 @@ where
     parse_comp_format::<P, P>(input)
 }
 
-fn parse_string(input: &mut &'_ str) -> PResult<String> {
-    alt((
-        delimited("'", take_until(0.., "'"), "'"),
-        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
-    ))
-    .context(StrContext::Expected(StrContextValue::Description("string")))
-    .map(String::from)
-    .parse_next(input)
-}
-
 pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
     alt((
         literal("-depth").value(GlobalOption::Depth),
-        parse_unary_pretty!("-maxdepth", GlobalOption::MaxDepth, u32::parse),
-        parse_unary_pretty!("-mindepth", GlobalOption::MinDepth, u32::parse),
-        parse_unary_pretty!("-threads", GlobalOption::Threads, u32::parse),
+        unary!("-maxdepth", GlobalOption::MaxDepth, u32::parse),
+        unary!("-mindepth", GlobalOption::MinDepth, u32::parse),
+        unary!("-threads", GlobalOption::Threads, u32::parse),
     ))
     .context(StrContext::Label("global_option"))
     .parse_next(input)
@@ -198,12 +208,12 @@ pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
 
 pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
     alt((
-        parse_unary_pretty!("-fls", Action::FileList, parse_string),
-        parse_unary_pretty!("-fprint0", Action::FilePrintNull, parse_string),
-        //parse_type_into!("-fprintf", Action::FilePrintFormatted, parse_string),
-        parse_unary_pretty!("-fprint", Action::FilePrint, parse_string),
+        unary!("-fls", Action::FileList, String::parse),
+        unary!("-fprint0", Action::FilePrintNull, String::parse),
+        //unary!("-fprintf", Action::FilePrintFormatted, String::parse),
+        unary!("-fprint", Action::FilePrint, String::parse),
         terminated("-ls", multispace0).value(Action::List),
-        parse_unary_pretty!("-printf", Action::PrintFormatted, parse_string),
+        unary!("-printf", Action::PrintFormatted, String::parse),
         terminated("-print0", multispace0).value(Action::PrintNull),
         terminated("-print", multispace0).value(Action::Print),
         terminated("-prune", multispace0).value(Action::Prune),
@@ -216,24 +226,24 @@ pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
 pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     alt((
         alt((
-            parse_type_into!(
+            unary!(
                 "-amin",
                 Test::AccessMin,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
-            parse_type_into!("-anewer", Test::AccessNewer, parse_string),
-            parse_type_into!(
+            unary!("-anewer", Test::AccessNewer, String::parse),
+            unary!(
                 "-atime",
                 Test::AccessTime,
                 parse_comp_format::<TimeSpec, DayDefault>
             ),
-            parse_type_into!(
+            unary!(
                 "-cmin",
                 Test::ChangeMin,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
-            parse_type_into!("-cnewer", Test::ChangeNewer, parse_string),
-            parse_type_into!(
+            unary!("-cnewer", Test::ChangeNewer, String::parse),
+            unary!(
                 "-ctime",
                 Test::ChangeTime,
                 parse_comp_format::<TimeSpec, DayDefault>
@@ -241,43 +251,43 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             literal("-empty").value(Test::Empty),
             literal("-executable").value(Test::Executable),
             literal("-false").value(Test::False),
-            parse_type_into!("-fstype", Test::FsType, parse_string),
-            parse_type_into!("-gid", Test::GroupId, parse_comp::<u32>),
-            parse_type_into!("-group", Test::Group, parse_string),
-            parse_type_into!("-ilname", Test::InsensitiveLinkName, parse_string),
-            parse_type_into!("-iname", Test::InsensitiveName, parse_string),
-            parse_type_into!("-inum", Test::InodeNumber, parse_comp::<u32>),
-            parse_type_into!("-ipath", Test::InsensitivePath, parse_string),
-            parse_type_into!("-iregex", Test::InsensitiveRegex, parse_string),
-            parse_type_into!("-links", Test::Hardlinks, u32::parse),
-            parse_type_into!(
+            unary!("-fstype", Test::FsType, String::parse),
+            unary!("-gid", Test::GroupId, parse_comp::<u32>),
+            unary!("-group", Test::Group, String::parse),
+            unary!("-ilname", Test::InsensitiveLinkName, String::parse),
+            unary!("-iname", Test::InsensitiveName, String::parse),
+            unary!("-inum", Test::InodeNumber, parse_comp::<u32>),
+            unary!("-ipath", Test::InsensitivePath, String::parse),
+            unary!("-iregex", Test::InsensitiveRegex, String::parse),
+            unary!("-links", Test::Hardlinks, u32::parse),
+            unary!(
                 "-mmin",
                 Test::ModifyMin,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
-            parse_type_into!("-mnewer", Test::ModifyNewer, parse_string),
-            parse_type_into!(
+            unary!("-mnewer", Test::ModifyNewer, String::parse),
+            unary!(
                 "-mtime",
                 Test::ModifyTime,
                 parse_comp_format::<TimeSpec, DayDefault>
             ),
         )),
         alt((
-            parse_type_into!("-name", Test::Name, parse_string),
+            unary!("-name", Test::Name, String::parse),
             literal("-nouser").value(Test::NoGroup),
             literal("-nogroup").value(Test::NoUser),
-            parse_type_into!("-path", Test::Path, parse_string),
-            parse_type_into!("-perm", Test::Perm, parse_string),
-            parse_type_into!("-perm+", Test::PermAtLeast, parse_string),
-            parse_type_into!("-perm/", Test::PermAny, parse_string),
+            unary!("-path", Test::Path, String::parse),
+            unary!("-perm", Test::Perm, String::parse),
+            unary!("-perm+", Test::PermAtLeast, String::parse),
+            unary!("-perm/", Test::PermAny, String::parse),
             literal("-readable").value(Test::Readable),
-            parse_type_into!("-regex", Test::Regex, parse_string),
-            parse_type_into!("-samefile", Test::Samefile, parse_string),
-            parse_type_into!("-size", Test::Size, parse_comp::<Size>),
+            unary!("-regex", Test::Regex, String::parse),
+            unary!("-samefile", Test::Samefile, String::parse),
+            unary!("-size", Test::Size, parse_comp::<Size>),
             literal("-true").value(Test::True),
-            parse_type_into!("-type", Test::Type, parse_string),
-            parse_type_into!("-uid", Test::UserId, parse_comp::<u32>),
-            parse_type_into!("-user", Test::User, parse_string),
+            unary!("-type", Test::Type, String::parse),
+            unary!("-uid", Test::UserId, parse_comp::<u32>),
+            unary!("-user", Test::User, String::parse),
             literal("-writable").value(Test::Writable),
         )),
     ))
@@ -285,6 +295,13 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
     .parse_next(input)
 }
 
+/// [Expression](crate::ast::Expression) most basic components.
+///
+/// Tokens are the elements that make up the result of the command line parsing's first pass.
+///
+/// The command line will be broken down in its most basic elements to prepare the precendence
+/// climbing. The elements of this enum are all of the allowed syntax and all proper syntax checks
+/// for tests and actions are done when generating this list.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Token {
     LParen,
@@ -313,6 +330,9 @@ impl winnow::stream::ContainsToken<Token> for &'_ [Token] {
     }
 }
 
+/// Convert a string literal to a list of [Token].
+///
+/// This will attempt to consume the entire input.
 pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
     preceded(
         multispace0,
@@ -322,6 +342,7 @@ pub fn lex(input: &mut &str) -> PResult<Vec<Token>> {
     .parse_next(input)
 }
 
+/// Consume a single token from the input.
 pub fn token(input: &mut &str) -> PResult<Token> {
     alt((
         literal("(").value(Token::LParen),
@@ -347,6 +368,10 @@ pub fn token(input: &mut &str) -> PResult<Token> {
     .parse_next(input)
 }
 
+/// Collection of parsers that operate on [crate::find_parser::Token] slices to do precedence parsing.
+///
+/// This parsing method will keep track of the last encountered operator to ensure
+/// the operator precedence is respected in the final expression.
 mod precedence {
     #[cfg(test)]
     use crate::find_parser::{Comparison, Test};
@@ -368,7 +393,7 @@ mod precedence {
         Ok(out.first().unwrap().to_owned())
     }
 
-    /// Lowest priority operator, if a `Token::Comma` is encountered in the token list we wait until
+    /// Lowest priority operator, if a [Token::Comma] is encountered in the token list we wait until
     /// either side of it are resolved to expressions.
     fn list(input: &mut &[Token]) -> PResult<Exp> {
         let init = or.parse_next(input)?;
@@ -389,7 +414,7 @@ mod precedence {
         .parse_next(input)
     }
 
-    /// Higher priority than list, but not as high as Token::And. We parse either side first.
+    /// Higher priority than list, but not as high as [Token::And]. We parse either side first.
     fn or(input: &mut &[Token]) -> PResult<Exp> {
         let init = and.parse_next(input)?;
 
@@ -617,6 +642,7 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
     match _parse(&mut input) {
         Err(e) => {
             let subject = e.clone();
+            // TODO transform the below context into a user-friendly description of the mistake
             log::error!(
                 "Error parsing input: `{}` ({:?})",
                 input,
@@ -653,16 +679,16 @@ fn test_parse_comparison_uint_error() {
 
 #[test]
 fn test_parse_string() -> Result<(), Box<dyn std::error::Error>> {
-    let res = parse_string(&mut "a_long_string").unwrap();
+    let res = String::parse(&mut "a_long_string").unwrap();
     assert_eq!(String::from("a_long_string"), res);
 
-    let res = parse_string(&mut "a_long_string\n").unwrap();
+    let res = String::parse(&mut "a_long_string\n").unwrap();
     assert_eq!(String::from("a_long_string"), res);
 
-    let res = parse_string(&mut "a_long_string another").unwrap();
+    let res = String::parse(&mut "a_long_string another").unwrap();
     assert_eq!(String::from("a_long_string"), res);
 
-    let res = parse_string(&mut "'a_long_string another' again").unwrap();
+    let res = String::parse(&mut "'a_long_string another' again").unwrap();
     assert_eq!(String::from("a_long_string another"), res);
 
     Ok(())

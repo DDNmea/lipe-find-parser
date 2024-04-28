@@ -5,12 +5,14 @@ mod scheme;
 pub use find_parser::parse;
 pub use scheme::compile;
 
-/// Convenience struct to collect the options passed on the command line
+/// Convenience struct to collect the [ast::GlobalOption] passed on the command line.
 #[derive(Debug)]
 pub struct RunOptions {
+    /// Perform the scan depth-first.
     pub depth: bool,
     //pub max_depth: u32,
     //pub min_depth: u32,
+    /// The number on threads to used for scanning. This is on a per-device basis.
     pub threads: Option<u32>,
 }
 
@@ -26,6 +28,7 @@ impl Default for RunOptions {
 }
 
 impl RunOptions {
+    /// Register a new value from the given [ast::GlobalOption].
     pub fn update(&mut self, option: &ast::GlobalOption) {
         match option {
             ast::GlobalOption::Depth => self.depth = true,
