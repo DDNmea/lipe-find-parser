@@ -6,6 +6,7 @@ authors = ["JB <jb.skutnik@gmail.com>"]
 
 [dependencies]
 log = "0.4.21"
+nix = { version = "0.28.0", features = ["fs"] }
 winnow = "0.6.5"
 
 [dev-dependencies]

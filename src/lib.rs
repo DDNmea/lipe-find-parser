@@ -3,6 +3,7 @@ mod find_parser;
 mod scheme;
 
 pub use find_parser::parse;
+pub use nix::sys::stat::Mode;
 pub use scheme::compile;
 
 /// Convenience struct to collect the [ast::GlobalOption] passed on the command line.

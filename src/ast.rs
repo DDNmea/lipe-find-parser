@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
+use crate::Mode;
 use std::rc::Rc;
 
 type SizeType = u64;
@@ -109,6 +110,18 @@ impl FileType {
     }
 }
 
+/// Permission parameter when testing file modes. We wrap around [nix::sys::stat::Mode] for the
+/// ease of use and convenient display parameters.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Permission(pub Mode);
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PermCheck {
+    AtLeast(Permission),
+    Any(Permission),
+    Equal(Permission),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
     AccessMin(Comparison<TimeSpec>),
@@ -128,9 +141,7 @@ pub enum Test {
     Name(String),
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     Path(String),
-    Perm(String),
-    PermAtLeast(String),
-    PermAny(String),
+    Perm(PermCheck),
     Readable,
     Size(Comparison<Size>),
     True,
