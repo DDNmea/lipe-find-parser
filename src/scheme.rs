@@ -193,31 +193,40 @@ fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpe
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
-            Test::False => buffer.push_str("#f"),
-            Test::True => buffer.push_str("#t"),
+            Test::AccessMin(cmp) | Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
+            Test::ChangeMin(cmp) | Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
             Test::Empty => buffer.push_str("(empty)"),
             Test::Executable => buffer.push_str("(executable)"),
-            Test::Writable => buffer.push_str("(writable)"),
-            Test::Name(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_strcmp(s))),
-            Test::InsensitiveName(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_ci_strcmp(s))),
-            Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_strcmp(s))),
-            Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_ci_strcmp(s))),
-            Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            Test::False => buffer.push_str("#f"),
             Test::GroupId(cmp) => buffer.push_str(&format_cmp!(cmp, "gid")),
-            Test::Size(cmp) => compile_size_comp(buffer, &cmp),
-            Test::AccessMin(cmp) | Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
+            Test::InodeNumber(cmp) => buffer.push_str(&format_cmp!(cmp, "ino")),
+            Test::InsensitiveName(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_ci_strcmp(s))),
+            Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_ci_strcmp(s))),
+            Test::Links(cmp) => buffer.push_str(&format_cmp!(cmp, "nlink")),
             Test::ModifyMin(cmp) | Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
-            Test::ChangeMin(cmp) | Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
+            Test::Name(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_strcmp(s))),
+            Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_strcmp(s))),
+            Test::Readable => buffer.push_str("(readable)"),
+            Test::Size(cmp) => compile_size_comp(buffer, &cmp),
+            Test::True => buffer.push_str("#t"),
+            Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
+            Test::Writable => buffer.push_str("(writable)"),
 
             // The following are tests defined by GNU find that are not supported either by LiPE or
             // exfind
             Test::AccessNewer(_) // LiPE support
             | Test::ChangeNewer(_) // LiPE support
-            | Test::ModifyNewer(_) // LiPE support
-            | Test::LinkName(_) // LiPE support
-            | Test::InsensitiveLinkName(_) // LiPE support
-            | Test::User(_) // exfind - we need to figure out what the uid on the remote host is
+            | Test::FsType(_) // LiPE support
             | Test::Group(_) // exfind - we need to figure out what the remote gid is
+            | Test::InsensitiveLinkName(_) // LiPE support
+            | Test::InsensitiveRegex(_) // LiPE support
+            | Test::LinkName(_) // LiPE support
+            | Test::ModifyNewer(_) // LiPE support
+            | Test::NoGroup // LiPE support
+            | Test::NoUser // LiPE support
+            | Test::Regex(_) // LiPE support
+            | Test::Samefile(_) // LiPE support
+            | Test::User(_) // exfind - we need to figure out the remote uid
 
             => {
                 log::error!("You have used a test that is not supported by this program.");

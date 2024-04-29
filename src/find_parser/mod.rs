@@ -259,7 +259,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             unary!("-inum", Test::InodeNumber, parse_comp::<u32>),
             unary!("-ipath", Test::InsensitivePath, String::parse),
             unary!("-iregex", Test::InsensitiveRegex, String::parse),
-            unary!("-links", Test::Hardlinks, u32::parse),
+            unary!("-links", Test::Links, parse_comp::<u64>),
             unary!(
                 "-mmin",
                 Test::ModifyMin,
