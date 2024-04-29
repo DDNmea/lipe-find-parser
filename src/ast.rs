@@ -74,7 +74,26 @@ pub enum Comparison<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {}
+pub enum FileType {
+    /// b      block (buffered) special
+    Block,
+    /// c      character (unbuffered) special
+    Character,
+    /// d      directory
+    Directory,
+    /// p      named pipe (FIFO)
+    Pipe,
+    /// f      regular file
+    File,
+    /// l      symbolic link
+    ///
+    /// this is never true if the -L option or the -follow  option is in effect,
+    /// unless the symbolic link is broken.  If you want to search for symbolic
+    /// links when -L is in effect, use -xtype.
+    Link,
+    /// s      socket
+    Socket,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
@@ -101,7 +120,7 @@ pub enum Test {
     Readable,
     Size(Comparison<Size>),
     True,
-    Type(String),
+    Type(Vec<FileType>),
     UserId(Comparison<u32>),
     Writable,
     //XType(Type)
