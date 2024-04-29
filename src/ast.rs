@@ -95,6 +95,20 @@ pub enum FileType {
     Socket,
 }
 
+impl FileType {
+    pub fn octal(&self) -> u64 {
+        match self {
+            FileType::Directory => 0o0040000,
+            FileType::Character => 0o0020000,
+            FileType::Block => 0o0060000,
+            FileType::File => 0o0100000,
+            FileType::Pipe => 0o0010000,
+            FileType::Link => 0o0120000,
+            FileType::Socket => 0o0140000,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
     AccessMin(Comparison<TimeSpec>),

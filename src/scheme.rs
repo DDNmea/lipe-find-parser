@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
 use crate::ast::{
-    Action, Comparison, Expression, Operator, PositionalOption, Size, Test, TimeSpec,
+    Action, Comparison, Expression, FileType, Operator, PositionalOption, Size, Test, TimeSpec,
 };
 use std::rc::Rc;
 use std::time::Instant;
@@ -190,6 +190,27 @@ fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpe
     buffer.push_str(&format_cmp!(comp, quotient, count));
 }
 
+static S_IFMT: u64 = 0o0170000;
+fn compile_type_comp(buffer: &mut String, filetype: &FileType) {
+    buffer.push_str(&format!(
+        "(= (logand (mode) {}) {})",
+        S_IFMT,
+        filetype.octal()
+    ))
+}
+
+fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
+    let comps: Vec<String> = filetypes
+        .iter()
+        .map(|tp| format!("(= (logand (mode) {}) {})", S_IFMT, tp.octal()))
+        .collect();
+
+    match comps.len() {
+        1 => buffer.push_str(comps.first().unwrap()),
+        _ => buffer.push_str(&format!("(or {})", comps.join(" "))),
+    }
+}
+
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
@@ -209,6 +230,7 @@ impl Scheme for Test {
             Test::Readable => buffer.push_str("(readable)"),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
             Test::True => buffer.push_str("#t"),
+            Test::Type(list) => compile_type_list_comp(buffer, list),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::Writable => buffer.push_str("(writable)"),
 
