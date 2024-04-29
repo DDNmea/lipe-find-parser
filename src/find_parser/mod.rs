@@ -95,7 +95,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
         alt((
             unary!(
                 "-amin",
-                Test::AccessMin,
+                Test::AccessTime,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
             unary!("-anewer", Test::AccessNewer, String::parse),
@@ -106,7 +106,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             ),
             unary!(
                 "-cmin",
-                Test::ChangeMin,
+                Test::ChangeTime,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
             unary!("-cnewer", Test::ChangeNewer, String::parse),
@@ -129,7 +129,7 @@ pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
             unary!("-links", Test::Links, parse_comp::<u64>),
             unary!(
                 "-mmin",
-                Test::ModifyMin,
+                Test::ModifyTime,
                 parse_comp_format::<TimeSpec, MinDefault>
             ),
             unary!("-mnewer", Test::ModifyNewer, String::parse),

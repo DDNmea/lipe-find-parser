@@ -124,9 +124,7 @@ pub enum PermCheck {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Test {
-    AccessMin(Comparison<TimeSpec>),
     AccessTime(Comparison<TimeSpec>),
-    ChangeMin(Comparison<TimeSpec>),
     ChangeTime(Comparison<TimeSpec>),
     Empty,
     Executable,
@@ -136,7 +134,6 @@ pub enum Test {
     InodeNumber(Comparison<u32>),
     InsensitivePath(String),
     Links(Comparison<SizeType>),
-    ModifyMin(Comparison<TimeSpec>),
     ModifyTime(Comparison<TimeSpec>),
     Name(String),
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms

@@ -214,8 +214,8 @@ fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
-            Test::AccessMin(cmp) | Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
-            Test::ChangeMin(cmp) | Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
+            Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
+            Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
             Test::Empty => buffer.push_str("(empty)"),
             Test::Executable => buffer.push_str("(executable)"),
             Test::False => buffer.push_str("#f"),
@@ -224,7 +224,7 @@ impl Scheme for Test {
             Test::InsensitiveName(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_ci_strcmp(s))),
             Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_ci_strcmp(s))),
             Test::Links(cmp) => buffer.push_str(&format_cmp!(cmp, "nlink")),
-            Test::ModifyMin(cmp) | Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
+            Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
             Test::Name(s) => buffer.push_str(&format!("(call-with-name %lf3:match:{})", ctx.register_strcmp(s))),
             Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path %lf3:match:{})", ctx.register_strcmp(s))),
             Test::Readable => buffer.push_str("(readable)"),

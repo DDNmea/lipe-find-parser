@@ -55,7 +55,7 @@ mod parsing {
     fn test_parse_test() {
         let (_, exp) = parse("-amin 44").unwrap();
         assert_eq!(
-            Exp::Test(Test::AccessMin(Comparison::Equal(TimeSpec::Minute(44)))),
+            Exp::Test(Test::AccessTime(Comparison::Equal(TimeSpec::Minute(44)))),
             exp
         );
 
