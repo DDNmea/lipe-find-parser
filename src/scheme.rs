@@ -3,6 +3,7 @@
 use crate::ast::{
     Action, Comparison, Expression, FileType, Operator, PositionalOption, Size, Test, TimeSpec,
 };
+use crate::SFlag;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -190,19 +191,25 @@ fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpe
     buffer.push_str(&format_cmp!(comp, quotient, count));
 }
 
-static S_IFMT: u64 = 0o0170000;
+static S_IFMT: SFlag = SFlag::S_IFMT;
 fn compile_type_comp(buffer: &mut String, filetype: &FileType) {
     buffer.push_str(&format!(
         "(= (logand (mode) {}) {})",
-        S_IFMT,
-        filetype.octal()
+        S_IFMT.bits(),
+        filetype.octal().bits()
     ))
 }
 
 fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
     let comps: Vec<String> = filetypes
         .iter()
-        .map(|tp| format!("(= (logand (mode) {}) {})", S_IFMT, tp.octal()))
+        .map(|tp| {
+            format!(
+                "(= (logand (mode) {}) {})",
+                S_IFMT.bits(),
+                tp.octal().bits()
+            )
+        })
         .collect();
 
     match comps.len() {

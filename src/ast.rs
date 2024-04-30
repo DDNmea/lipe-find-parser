@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::Mode;
+use crate::{Mode, SFlag};
 use std::rc::Rc;
 
 type SizeType = u64;
@@ -97,15 +97,15 @@ pub enum FileType {
 }
 
 impl FileType {
-    pub fn octal(&self) -> u64 {
+    pub fn octal(&self) -> SFlag {
         match self {
-            FileType::Directory => 0o0040000,
-            FileType::Character => 0o0020000,
-            FileType::Block => 0o0060000,
-            FileType::File => 0o0100000,
-            FileType::Pipe => 0o0010000,
-            FileType::Link => 0o0120000,
-            FileType::Socket => 0o0140000,
+            FileType::Directory => SFlag::S_IFDIR,
+            FileType::Character => SFlag::S_IFCHR,
+            FileType::Block => SFlag::S_IFBLK,
+            FileType::File => SFlag::S_IFREG,
+            FileType::Pipe => SFlag::S_IFIFO,
+            FileType::Link => SFlag::S_IFLNK,
+            FileType::Socket => SFlag::S_IFSOCK,
         }
     }
 }
