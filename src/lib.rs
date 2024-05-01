@@ -199,6 +199,11 @@ mod parsing {
 }
 
 #[cfg(test)]
+/// Top level testing to ensure the compilation output is equal to LiPE find
+/// Script to get the Scheme output from lipe_find3:
+/// ```bash
+/// lipe_find3 --debug / $@ 2>&1 | grep -A 200 -e scm_code | sed -s "s/.*'(use/(use/g" | head -n -3
+/// ```
 mod find_compilation {
     use crate::{compile, parse};
     use std::error::Error;
@@ -226,8 +231,33 @@ mod find_compilation {
     }
 
     #[test]
+    fn test_compile_permission_check_symbolic_equal_user_equal() {
+        insta::assert_snapshot!(parse_and_compile("-perm u=w").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_all_plus() {
+        insta::assert_snapshot!(parse_and_compile("-perm a+x").unwrap());
+    }
+
+    #[test]
     fn test_compile_permission_check_symbolic_equal_user_plus() {
         insta::assert_snapshot!(parse_and_compile("-perm u+w").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_group_plus() {
+        insta::assert_snapshot!(parse_and_compile("-perm g+w").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_all_minus() {
+        insta::assert_snapshot!(parse_and_compile("-perm a-x").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_user_group_minus() {
+        insta::assert_snapshot!(parse_and_compile("-perm ug-rw").unwrap());
     }
 
     #[test]
