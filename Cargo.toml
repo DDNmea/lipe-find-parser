@@ -10,4 +10,5 @@ nix = { version = "0.28.0", features = ["fs"] }
 winnow = "0.6.5"
 
 [dev-dependencies]
+insta = { version = "1.38.0", features = ["yaml"] }
 simple_logger = "4.3.3"

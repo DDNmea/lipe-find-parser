@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
 use crate::ast::{
-    Action, Comparison, Expression, FileType, Operator, PermCheck, Permission, PositionalOption,
-    Size, Test, TimeSpec,
+    Action, Comparison, Expression, FileType, Operator, PermCheck, PositionalOption, Size, Test,
+    TimeSpec,
 };
 use crate::Mode;
 use crate::SFlag;
@@ -387,7 +387,7 @@ pub fn compile<S: AsRef<str>>(
         format!(
             "(use-modules (lipe) (lipe find))
 
-(let * ({})
+(let* ({})
   (dynamic-wind
     (lambda () {})
     (lambda () (lipe-scan

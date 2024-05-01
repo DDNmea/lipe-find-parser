@@ -197,3 +197,41 @@ mod parsing {
         );
     }
 }
+
+#[cfg(test)]
+mod find_compilation {
+    use crate::{compile, parse};
+    use std::error::Error;
+
+    fn parse_and_compile<S: AsRef<str>>(input: S) -> Result<String, Box<dyn Error>> {
+        let mut clone = input.as_ref().to_string();
+        let (opt, exp) = parse(&mut clone).unwrap();
+
+        Ok(compile(&exp, &opt)("/"))
+    }
+
+    #[test]
+    fn test_compile_permission_check_basic_equal() {
+        insta::assert_snapshot!(parse_and_compile("-perm 667").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_basic_any() {
+        insta::assert_snapshot!(parse_and_compile("-perm -244").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_all_equal() {
+        insta::assert_snapshot!(parse_and_compile("-perm a=x").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_equal_user_plus() {
+        insta::assert_snapshot!(parse_and_compile("-perm u+w").unwrap());
+    }
+
+    #[test]
+    fn test_compile_permission_check_symbolic_at_least_user_plus() {
+        insta::assert_snapshot!(parse_and_compile("-perm /u+w").unwrap());
+    }
+}

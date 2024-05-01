@@ -1,0 +1,17 @@
+---
+source: src/lib.rs
+assertion_line: 230
+expression: "parse_and_compile(\"-perm u+w\").unwrap()"
+---
+(use-modules (lipe) (lipe find))
+
+(let* ()
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        "/"
+        (lipe-getopt-client-mount-path)
+        (lambda () (and (= (logand (mode) 4095) 128) (print-relative-path)))
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () #t)))
