@@ -1,8 +1,10 @@
 #![allow(dead_code, unused_variables)]
 
 use crate::ast::{
-    Action, Comparison, Expression, FileType, Operator, PositionalOption, Size, Test, TimeSpec,
+    Action, Comparison, Expression, FileType, Operator, PermCheck, Permission, PositionalOption,
+    Size, Test, TimeSpec,
 };
+use crate::Mode;
 use crate::SFlag;
 use std::rc::Rc;
 use std::time::Instant;
@@ -218,6 +220,28 @@ fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
     }
 }
 
+fn compile_perm_check(buffer: &mut String, check: &PermCheck) {
+    let (PermCheck::Any(p) | PermCheck::AtLeast(p) | PermCheck::Equal(p)) = check;
+
+    let perm_mask = (Mode::S_ISUID
+        | Mode::S_ISGID
+        | Mode::S_ISVTX
+        | Mode::S_IRWXU
+        | Mode::S_IRWXG
+        | Mode::S_IRWXO)
+        .bits();
+
+    let perm = p.0.bits();
+
+    let code = match check {
+        PermCheck::Equal(p) => format!("(= (logand (mode) {}) {})", perm_mask, perm),
+        PermCheck::AtLeast(p) => format!("(= (logand (mode) {}) {})", perm, perm),
+        PermCheck::Any(p) => format!("(not (= (logand (mode) {}) 0))", perm),
+    };
+
+    buffer.push_str(&code)
+}
+
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
@@ -240,6 +264,7 @@ impl Scheme for Test {
             Test::Type(list) => compile_type_list_comp(buffer, list),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::Writable => buffer.push_str("(writable)"),
+            Test::Perm(check) => compile_perm_check(buffer, check),
 
             // The following are tests defined by GNU find that are not supported either by LiPE or
             // exfind
@@ -261,11 +286,6 @@ impl Scheme for Test {
                 log::error!("You have used a test that is not supported by this program.");
                 todo!()
             }
-
-            #[cfg(debug_assertions)]
-            _ => buffer.push_str("(UNIMPLEMENTED)"),
-            #[cfg(not(debug_assertions))]
-            _ => todo!(),
         }
     }
 }
