@@ -216,52 +216,52 @@ mod find_compilation {
     }
 
     #[test]
-    fn test_compile_permission_check_basic_equal() {
+    fn test_permission_check_basic_equal() {
         insta::assert_snapshot!(parse_and_compile("-perm 667").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_basic_any() {
+    fn test_permission_check_basic_any() {
         insta::assert_snapshot!(parse_and_compile("-perm -244").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_all_equal() {
+    fn test_permission_check_symbolic_equal_all_equal() {
         insta::assert_snapshot!(parse_and_compile("-perm a=x").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_user_equal() {
+    fn test_permission_check_symbolic_equal_user_equal() {
         insta::assert_snapshot!(parse_and_compile("-perm u=w").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_all_plus() {
+    fn test_permission_check_symbolic_equal_all_plus() {
         insta::assert_snapshot!(parse_and_compile("-perm a+x").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_user_plus() {
+    fn test_permission_check_symbolic_equal_user_plus() {
         insta::assert_snapshot!(parse_and_compile("-perm u+w").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_group_plus() {
+    fn test_permission_check_symbolic_equal_group_plus() {
         insta::assert_snapshot!(parse_and_compile("-perm g+w").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_all_minus() {
+    fn test_permission_check_symbolic_equal_all_minus() {
         insta::assert_snapshot!(parse_and_compile("-perm a-x").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_equal_user_group_minus() {
+    fn test_permission_check_symbolic_equal_user_group_minus() {
         insta::assert_snapshot!(parse_and_compile("-perm ug-rw").unwrap());
     }
 
     #[test]
-    fn test_compile_permission_check_symbolic_at_least_user_plus() {
+    fn test_permission_check_symbolic_at_least_user_plus() {
         insta::assert_snapshot!(parse_and_compile("-perm /u+w").unwrap());
     }
 }
