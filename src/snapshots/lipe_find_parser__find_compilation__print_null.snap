@@ -1,0 +1,17 @@
+---
+source: src/lib.rs
+assertion_line: 278
+expression: "parse_and_compile(\"-print0\")"
+---
+(use-modules (lipe) (lipe find))
+
+(let* ((%lf3:port:0 (current-output-port)) (%lf3:mutex:1 (make-mutex)) (%lf3:print:2 (make-printer %lf3:port:0 %lf3:mutex:1 #\x00)))
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        "/"
+        (lipe-getopt-client-mount-path)
+        (lambda () (call-with-relative-path %lf3:print:2))
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () #t)))

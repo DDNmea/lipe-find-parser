@@ -205,63 +205,88 @@ mod parsing {
 /// lipe_find3 --debug / $@ 2>&1 | grep -A 200 -e scm_code | sed -s "s/.*'(use/(use/g" | head -n -3
 /// ```
 mod find_compilation {
-    use crate::{compile, parse};
-    use std::error::Error;
+    use crate::{
+        ast::{Expression as Exp, Test},
+        compile, parse, RunOptions,
+    };
 
-    fn parse_and_compile<S: AsRef<str>>(input: S) -> Result<String, Box<dyn Error>> {
+    fn parse_and_compile<S: AsRef<str>>(input: S) -> String {
         let mut clone = input.as_ref().to_string();
-        let (opt, exp) = parse(&mut clone).unwrap();
+        let (opt, exp) =
+            parse(&mut clone).unwrap_or((RunOptions::default(), Exp::Test(Test::False)));
 
-        Ok(compile(&exp, &opt)("/"))
+        compile(&exp, &opt)("/")
     }
 
     #[test]
     fn test_permission_check_basic_equal() {
-        insta::assert_snapshot!(parse_and_compile("-perm 667").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm 667"));
     }
 
     #[test]
     fn test_permission_check_basic_any() {
-        insta::assert_snapshot!(parse_and_compile("-perm -244").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm -244"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_all_equal() {
-        insta::assert_snapshot!(parse_and_compile("-perm a=x").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm a=x"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_user_equal() {
-        insta::assert_snapshot!(parse_and_compile("-perm u=w").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm u=w"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_all_plus() {
-        insta::assert_snapshot!(parse_and_compile("-perm a+x").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm a+x"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_user_plus() {
-        insta::assert_snapshot!(parse_and_compile("-perm u+w").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm u+w"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_group_plus() {
-        insta::assert_snapshot!(parse_and_compile("-perm g+w").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm g+w"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_all_minus() {
-        insta::assert_snapshot!(parse_and_compile("-perm a-x").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm a-x"));
     }
 
     #[test]
     fn test_permission_check_symbolic_equal_user_group_minus() {
-        insta::assert_snapshot!(parse_and_compile("-perm ug-rw").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm ug-rw"));
     }
 
     #[test]
     fn test_permission_check_symbolic_at_least_user_plus() {
-        insta::assert_snapshot!(parse_and_compile("-perm /u+w").unwrap());
+        insta::assert_snapshot!(parse_and_compile("-perm /u+w"));
+    }
+
+    #[test]
+    fn test_print() {
+        insta::assert_snapshot!(parse_and_compile("-print"));
+    }
+
+    #[test]
+    fn test_print_null() {
+        insta::assert_snapshot!(parse_and_compile("-print0"));
+    }
+
+    #[test]
+    fn test_fprint() {
+        insta::assert_snapshot!(parse_and_compile("-fprint filelist.out"));
+    }
+
+    #[test]
+    fn test_printf() {
+        insta::assert_snapshot!(parse_and_compile(
+            "-printf \"%p,%U,%G,%m,%s,%A@,%C@,%T@,%{projid},%{fid}\n\""
+        ));
     }
 }

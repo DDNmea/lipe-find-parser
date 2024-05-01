@@ -1,0 +1,18 @@
+---
+source: src/lib.rs
+assertion_line: 284
+expression: "parse_and_compile(\"-printf \\\"%p,%U,%G,%m,%s,%A@,%C@,%T@,%{projid},%{fid}\\n\\\"\").unwrap_or(String::from(\"Failed to parse\"))"
+---
+(use-modules (lipe) (lipe find))
+
+(let* ((%lf3:port:0 (current-output-port)) (%lf3:mutex:1 (make-mutex))
+(%lf3:print:2 (make-printer %lf3:port:0 %lf3:mutex:1 #f)))
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        "/"
+        (lipe-getopt-client-mount-path)
+        (lambda () (%lf3:print:2 (format #f "~a,~d,~d,~o,~d,~d,~d,~d,~d,~a\n" (absolute-path) (uid) (gid) (logand (mode) #o07777) (size) (atime) (ctime) (mtime) (projid) (file-fid))))
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () #t)))

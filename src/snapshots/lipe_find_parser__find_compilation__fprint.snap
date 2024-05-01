@@ -1,0 +1,17 @@
+---
+source: src/lib.rs
+assertion_line: 275
+expression: "parse_and_compile(\"-fprint filelist.out\").unwrap()"
+---
+(use-modules (lipe) (lipe find))
+
+(let* ((%lf3:port:0 (open-file "filelist.out" "w")) (%lf3:mutex:1 (make-mutex)) (%lf3:print:2 (make-printer %lf3:port:0 %lf3:mutex:1 #\x0a)))
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        "/"
+        (lipe-getopt-client-mount-path)
+        (lambda () (call-with-relative-path %lf3:print:2))
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () (close-port %lf3:port:0))))
