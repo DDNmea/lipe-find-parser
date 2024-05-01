@@ -65,7 +65,7 @@ impl Parseable for PartialPermission {
 
         Ok(match operator {
             '=' => PartialPermission::Set(target_mode, level_mode),
-            '+' => PartialPermission::Add(target_mode | level_mode),
+            '+' => PartialPermission::Add(target_mode & level_mode),
             '-' => PartialPermission::Del(target_mode & !level_mode),
             _ => unreachable!(),
         })
@@ -134,14 +134,7 @@ fn test_parse_partial() {
     assert_eq!(
         res,
         Ok(PartialPermission::Add(
-            Mode::S_IRWXG
-                | Mode::S_IRWXO
-                | Mode::S_IWUSR
-                | Mode::S_IWGRP
-                | Mode::S_IWOTH
-                | Mode::S_IXUSR
-                | Mode::S_IXGRP
-                | Mode::S_IXOTH
+            Mode::S_IWGRP | Mode::S_IWOTH | Mode::S_IXGRP | Mode::S_IXOTH
         ))
     );
 
