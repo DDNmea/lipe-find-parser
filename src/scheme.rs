@@ -1,8 +1,8 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables, deprecated)]
 
 use crate::ast::{
-    Action, Comparison, Expression, FileType, Operator, PermCheck, PositionalOption, Size, Test,
-    TimeSpec,
+    Action, Comparison, Expression, FileType, FormatElement, FormatField, FormatSpecial, Operator,
+    PermCheck, PositionalOption, Size, Test, TimeSpec,
 };
 use crate::Mode;
 use crate::SFlag;
@@ -104,10 +104,29 @@ impl SchemeManager {
         self.vars
             .push(format!("(%lf3:mutex:{} (make-mutex))", self.var_index + 1));
         self.vars.push(format!(
-            "(%lf3:print:{} (make-printer %lf3:port:{}, %lf3:mutex:{} #\\x0a))",
+            "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} #\\x0a))",
             self.var_index + 2,
             self.var_index,
             self.var_index + 1
+        ));
+
+        self.var_index += 3;
+        return self.var_index - 1;
+    }
+
+    fn register_port<S: AsRef<str>>(&mut self, terminator: S) -> usize {
+        self.vars.push(format!(
+            "(%lf3:port:{} (current-output-port))",
+            self.var_index
+        ));
+        self.vars
+            .push(format!("(%lf3:mutex:{} (make-mutex))", self.var_index + 1));
+        self.vars.push(format!(
+            "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
+            self.var_index + 2,
+            self.var_index,
+            self.var_index + 1,
+            terminator.as_ref()
         ));
 
         self.var_index += 3;
@@ -242,6 +261,161 @@ fn compile_perm_check(buffer: &mut String, check: &PermCheck) {
     buffer.push_str(&code)
 }
 
+fn literal(special: &FormatSpecial) -> String {
+    match special {
+        FormatSpecial::Alarm => "\\a".to_string(),
+        FormatSpecial::Ascii(val) => format!("{}", char::from_u32(*val as u32).unwrap_or('0')),
+        FormatSpecial::Backslash => "\\".to_string(),
+        FormatSpecial::Backspace => "\\b".to_string(),
+        FormatSpecial::CarriageReturn => "\\r".to_string(),
+        FormatSpecial::Clear => "\\c".to_string(),
+        FormatSpecial::Form => "\\f".to_string(),
+        FormatSpecial::Newline => "\\n".to_string(),
+        FormatSpecial::Null => "\\0".to_string(),
+        FormatSpecial::TabHorizontal => "\\t".to_string(),
+        FormatSpecial::TabVertical => "\\v".to_string(),
+    }
+}
+
+fn placeholder(field: &FormatField) -> &'static str {
+    match field {
+        FormatField::Access
+        | FormatField::Basename
+        | FormatField::Change
+        | FormatField::FileId
+        | FormatField::Group
+        | FormatField::Modify
+        | FormatField::Name
+        | FormatField::NameWithoutStartingPoint
+        | FormatField::Parents
+        | FormatField::StartingPoint
+        | FormatField::Type
+        | FormatField::User
+        | FormatField::XAttr(_) => "~a",
+
+        FormatField::DiskSizeBlocks
+        | FormatField::DiskSizeBytes
+        | FormatField::DiskSizeKilos
+        | FormatField::GroupId
+        | FormatField::Hardlinks
+        | FormatField::InodeDecimal
+        | FormatField::MirrorCount
+        | FormatField::ProjectId
+        | FormatField::StripeCount
+        | FormatField::StripeSize
+        | FormatField::UserId => "~d",
+
+        FormatField::PermissionsOctal => "~o",
+
+        FormatField::Sparseness => "~f",
+
+        FormatField::Percent => "%",
+
+        FormatField::AccessFormatted(f)
+        | FormatField::ChangeFormatted(f)
+        | FormatField::ModifyFormatted(f) => match f {
+            '@' => "~d",
+            _ => "~a",
+        },
+
+        FormatField::Depth
+        | FormatField::DeviceNumber
+        | FormatField::FsType
+        | FormatField::SymbolicTarget
+        | FormatField::PermissionsSymbolic
+        | FormatField::TypeSymlink
+        | FormatField::SecurityContext => "x",
+    }
+}
+
+fn snippet(field: &FormatField) -> Option<String> {
+    let snippet = match field {
+        FormatField::Percent => "".to_string(),
+        FormatField::Access => "atime".to_string(),
+        FormatField::Change => "ctime".to_string(),
+        FormatField::Modify => "mtime".to_string(),
+        FormatField::DiskSizeBlocks => "blocks".to_string(),
+        FormatField::Basename => "name".to_string(),
+        FormatField::Group => "group".to_string(),
+        FormatField::GroupId => "gid".to_string(),
+        FormatField::Parents => "call-with-relative-path dirname".to_string(),
+        FormatField::StartingPoint => "lipe-scan-client-mount-path".to_string(),
+        FormatField::InodeDecimal => "ino".to_string(),
+        FormatField::DiskSizeKilos => "quotient (+ (blocks) 1) 2".to_string(),
+        FormatField::PermissionsOctal => "logand (mode) #o07777".to_string(),
+        FormatField::Hardlinks => "nlink".to_string(),
+        FormatField::Name => "absolute-path".to_string(),
+        FormatField::NameWithoutStartingPoint => "relative-path".to_string(),
+        FormatField::DiskSizeBytes => "size".to_string(),
+        FormatField::Sparseness => "/ (* 512 (blocks)) (size)".to_string(),
+        FormatField::User => "user".to_string(),
+        FormatField::UserId => "uid".to_string(),
+        FormatField::Type => "type->char (type)".to_string(),
+        FormatField::FileId => "file-fid".to_string(),
+        FormatField::StripeSize => "lov-stripe-size".to_string(),
+        FormatField::StripeCount => "lov-stripe-count".to_string(),
+        FormatField::MirrorCount => "lov-mirror-count".to_string(),
+        FormatField::ProjectId => "projid".to_string(),
+
+        FormatField::AccessFormatted(f) => match f {
+            '@' => "atime".to_string(),
+            f => format!("strftime \"%{f}\" (localtime (atime))"),
+        }
+        .to_string(),
+
+        FormatField::ChangeFormatted(f) => match f {
+            '@' => "ctime".to_string(),
+            f => format!("strftime \"%{f}\" (localtime (ctime))"),
+        },
+
+        FormatField::ModifyFormatted(f) => match f {
+            '@' => "mtime".to_string(),
+            f => format!("strftime \"%{f}\" (localtime (mtime))"),
+        },
+
+        FormatField::XAttr(attr) => format!("or (xattr-ref-string \"{attr}\") \"\"").to_owned(),
+
+        FormatField::Depth
+        | FormatField::DeviceNumber
+        | FormatField::FsType
+        | FormatField::SymbolicTarget
+        | FormatField::PermissionsSymbolic
+        | FormatField::TypeSymlink
+        | FormatField::SecurityContext => "".to_string(),
+    };
+
+    (!snippet.is_empty()).then(move || format!("({})", snippet))
+}
+
+impl Scheme for Vec<FormatElement> {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+        let port = ctx.register_port("#f");
+        let template = self
+            .iter()
+            .map(|el| match el {
+                FormatElement::Literal(s) => s.clone(),
+                FormatElement::Field(f) => placeholder(f).to_string(),
+                FormatElement::Special(v) => literal(v),
+            })
+            .collect::<Vec<String>>()
+            .join("");
+
+        let items = self
+            .iter()
+            .filter_map(|el| match el {
+                FormatElement::Literal(s) => None,
+                FormatElement::Field(f) => snippet(f),
+                FormatElement::Special(v) => None,
+            })
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        buffer.push_str(&format!(
+            "(%lf3:print:{port} (format #f \"{template}\" {items}))"
+        ));
+    }
+}
+
 impl Scheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
@@ -323,11 +497,20 @@ impl Scheme for Operator {
 impl Scheme for Action {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
         match self {
-            Action::Print => buffer.push_str("(print-relative-path)"),
+            Action::DefaultPrint => buffer.push_str("(print-relative-path)"),
+            Action::Print => {
+                let port = ctx.register_port("#\\x0a");
+                buffer.push_str(&format!("(call-with-relative-path %lf3:print:{port})"));
+            }
+            Action::PrintNull => {
+                let port = ctx.register_port("#\\x00");
+                buffer.push_str(&format!("(call-with-relative-path %lf3:print:{port})"));
+            }
             Action::FilePrint(dest) => {
                 let var_id = ctx.register_file(dest);
                 buffer.push_str(&format!("(call-with-relative-path %lf3:print:{})", var_id))
             }
+            Action::PrintFormatted(elements) => elements.compile(buffer, ctx),
             #[cfg(debug_assertions)]
             _ => buffer.push_str("(UNIMPLEMENTED)"),
             #[cfg(not(debug_assertions))]
@@ -371,7 +554,7 @@ pub fn compile<S: AsRef<str>>(
     if !exp.action() {
         let wrapper = Expression::Operator(Rc::new(Operator::And(
             exp.clone(),
-            Expression::Action(Action::Print),
+            Expression::Action(Action::DefaultPrint),
         )));
 
         wrapper.compile(&mut buffer, &mut manager);

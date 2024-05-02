@@ -286,7 +286,7 @@ mod find_compilation {
     #[test]
     fn test_printf() {
         insta::assert_snapshot!(parse_and_compile(
-            "-printf \"%p,%U,%G,%m,%s,%A@,%C@,%T@,%{projid},%{fid}\n\""
+            "-printf \"%p,%U,%G,%m,%s,%A@,%C@,%T@,%{projid},%{fid}\\n\""
         ));
     }
 }

@@ -244,6 +244,14 @@ pub enum Action {
     PrintFormatted(Vec<FormatElement>),
     Prune,
     Quit,
+
+    #[deprecated]
+    /// Implicit printing directive
+    ///
+    /// Although the actions are the same, the original code handles implicit and explicit print
+    /// differently. This is only inserted in the ast when no other action is present to match the
+    /// original behaviour.
+    DefaultPrint,
 }
 
 /// Options affecting the behaviour of the scan. They are expected to be present before any other
