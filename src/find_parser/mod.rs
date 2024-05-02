@@ -1,4 +1,5 @@
 mod filetype;
+mod format;
 mod permission;
 mod precedence;
 mod prelude;
@@ -74,13 +75,26 @@ pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
 }
 
 pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
+    let fmt = alt((
+        delimited("\"", take_until(0.., "\""), "\""),
+        delimited("'", take_until(0.., "'"), "'"),
+        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+    ));
+
     alt((
         unary!("-fls", Action::FileList, String::parse),
         unary!("-fprint0", Action::FilePrintNull, String::parse),
         //unary!("-fprintf", Action::FilePrintFormatted, String::parse),
         unary!("-fprint", Action::FilePrint, String::parse),
         terminated("-ls", multispace0).value(Action::List),
-        unary!("-printf", Action::PrintFormatted, String::parse),
+        preceded(
+            "-printf",
+            cut_err(preceded(
+                multispace1,
+                fmt.and_then(|&mut mut out: &mut &str| Vec::<FormatElement>::parse(&mut out)),
+            )),
+        )
+        .map(Action::PrintFormatted),
         terminated("-print0", multispace0).value(Action::PrintNull),
         terminated("-print", multispace0).value(Action::Print),
         terminated("-prune", multispace0).value(Action::Prune),

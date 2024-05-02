@@ -1,6 +1,6 @@
 pub use crate::ast::{
-    Action, Comparison, Expression as Exp, FileType, GlobalOption, Operator as Ope, PermCheck,
-    Permission, PositionalOption, Size, Test, TimeSpec,
+    Action, Comparison, Expression as Exp, FileType, FormatElement, FormatField, FormatSpecial,
+    GlobalOption, Operator as Ope, PermCheck, Permission, PositionalOption, Size, Test, TimeSpec,
 };
 pub use crate::RunOptions;
 pub use winnow::{
