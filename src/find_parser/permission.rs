@@ -85,11 +85,6 @@ impl PartialPermission {
     }
 }
 
-#[cfg(target_arch = "aarch64")]
-type Middleman = u16;
-#[cfg(not(target_arch = "aarch64"))]
-type Middleman = u32;
-
 impl Parseable for Permission {
     fn parse(input: &mut &str) -> PResult<Permission> {
         alt((
@@ -100,7 +95,7 @@ impl Parseable for Permission {
                 })
                 .map(|m| Permission(m)),
             take_while(3.., |c| "01234567".contains(c))
-                .map(|oct| Middleman::from_str_radix(oct, 8).unwrap())
+                .map(|oct| u32::from_str_radix(oct, 8).unwrap())
                 .map(|bits| Permission(Mode::from_bits(bits).unwrap())),
         ))
         .parse_next(input)
