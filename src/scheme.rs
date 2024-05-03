@@ -71,11 +71,9 @@ impl SchemeManager {
     /// This method operates the same way as the above for case insensitive matches, using either
     /// fnmatch-ci or streq-ci
     fn register_ci_strcmp<S: AsRef<str>>(&mut self, cmp: S) -> usize {
-        let matcher = if is_pattern(cmp.as_ref()) {
-            "fnmatch-ci"
-        } else {
-            "streq-ci"
-        };
+        let matcher = is_pattern(cmp.as_ref())
+            .then(|| "fnmatch-ci")
+            .unwrap_or("streq-ci");
 
         self.register_str_match(matcher, cmp.as_ref())
     }
@@ -93,21 +91,26 @@ impl SchemeManager {
         return self.var_index - 1;
     }
 
-    fn register_file<S: AsRef<str>>(&mut self, cmp: S) -> usize {
+    fn register_file<S, T>(&mut self, filename: S, terminator: T) -> usize
+    where
+        S: AsRef<str>,
+        T: AsRef<str>,
+    {
         self.vars.push(format!(
             "(%lf3:port:{} (open-file \"{}\" \"w\"))",
             self.var_index,
-            cmp.as_ref(),
+            filename.as_ref(),
         ));
         self.fini
             .push(format!("(close-port %lf3:port:{})", self.var_index));
         self.vars
             .push(format!("(%lf3:mutex:{} (make-mutex))", self.var_index + 1));
         self.vars.push(format!(
-            "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} #\\x0a))",
+            "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
             self.var_index + 2,
             self.var_index,
-            self.var_index + 1
+            self.var_index + 1,
+            terminator.as_ref()
         ));
 
         self.var_index += 3;
@@ -389,7 +392,6 @@ fn snippet(field: &FormatField) -> Option<String> {
 
 impl Scheme for Vec<FormatElement> {
     fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
-        let port = ctx.register_port("#f");
         let template = self
             .iter()
             .map(|el| match el {
@@ -410,9 +412,7 @@ impl Scheme for Vec<FormatElement> {
             .collect::<Vec<String>>()
             .join(" ");
 
-        buffer.push_str(&format!(
-            "(%lf3:print:{port} (format #f \"{template}\" {items}))"
-        ));
+        buffer.push_str(&format!("(format #f \"{template}\" {items})"));
     }
 }
 
@@ -502,19 +502,39 @@ impl Scheme for Action {
                 let port = ctx.register_port("#\\x0a");
                 buffer.push_str(&format!("(call-with-relative-path %lf3:print:{port})"));
             }
+
             Action::PrintNull => {
                 let port = ctx.register_port("#\\x00");
                 buffer.push_str(&format!("(call-with-relative-path %lf3:print:{port})"));
             }
+
             Action::FilePrint(dest) => {
-                let var_id = ctx.register_file(dest);
+                let var_id = ctx.register_file(dest, "#\\x0a");
                 buffer.push_str(&format!("(call-with-relative-path %lf3:print:{})", var_id))
             }
-            Action::PrintFormatted(elements) => elements.compile(buffer, ctx),
-            #[cfg(debug_assertions)]
-            _ => buffer.push_str("(UNIMPLEMENTED)"),
-            #[cfg(not(debug_assertions))]
-            _ => todo!(),
+
+            Action::FilePrintNull(dest) => {
+                let var_id = ctx.register_file(dest, "#\\x00");
+                buffer.push_str(&format!("(call-with-relative-path %lf3:print:{})", var_id))
+            }
+
+            Action::PrintFormatted(elements) => {
+                let port = ctx.register_port("#f");
+                buffer.push_str(&format!("(%lf3:print:{port} "));
+                elements.compile(buffer, ctx);
+                buffer.push_str(&format!(")"));
+            }
+
+            Action::FilePrintFormatted(dest, elements) => {
+                let port = ctx.register_file(dest, "#f");
+                buffer.push_str(&format!("(%lf3:print:{port} "));
+                elements.compile(buffer, ctx);
+                buffer.push_str(&format!(")"));
+            }
+
+            Action::Quit => buffer.push_str("(lipe-scan-break 0)"),
+
+            Action::Prune | Action::List | Action::FileList(_) => log::error!("Unsupported action"),
         }
     }
 }

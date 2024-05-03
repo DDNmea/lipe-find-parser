@@ -6,12 +6,23 @@ pub use crate::RunOptions;
 pub use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
     combinator::{
-        alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till, separated, terminated,
+        alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till, separated,
+        separated_pair, terminated,
     },
     error::{StrContext, StrContextValue},
     prelude::*,
     token::{any, literal, one_of, take_until, take_while},
 };
+
+macro_rules! parse_string_stream {
+    () => {
+        alt((
+            delimited("\"", take_until(0.., "\""), "\""),
+            delimited("'", take_until(0.., "'"), "'"),
+            take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+        ))
+    };
+}
 
 /// Trait used to add the ability to parse arbitrary types
 pub trait Parseable {
@@ -52,13 +63,10 @@ impl Parseable for u64 {
 
 impl Parseable for String {
     fn parse(input: &mut &str) -> PResult<String> {
-        alt((
-            delimited("'", take_until(0.., "'"), "'"),
-            take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
-        ))
-        .context(StrContext::Expected(StrContextValue::Description("string")))
-        .map(String::from)
-        .parse_next(input)
+        parse_string_stream!()
+            .context(StrContext::Expected(StrContextValue::Description("string")))
+            .map(String::from)
+            .parse_next(input)
     }
 }
 

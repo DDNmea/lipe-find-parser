@@ -235,7 +235,7 @@ pub enum Action {
     FileList(String),
     FilePrint(String),
     FilePrintNull(String),
-    FilePrintFormatted(String, String),
+    FilePrintFormatted(String, Vec<FormatElement>),
     List,
     //Ask(Vec<String>)
     //AskDir(Vec<String>)

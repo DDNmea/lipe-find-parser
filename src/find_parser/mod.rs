@@ -2,6 +2,7 @@ mod filetype;
 mod format;
 mod permission;
 mod precedence;
+#[macro_use]
 mod prelude;
 mod size;
 mod timespec;
@@ -29,149 +30,160 @@ macro_rules! unary {
     };
 }
 
-fn parse_comp_format<Typ, Def>(input: &mut &'_ str) -> PResult<Comparison<Typ>>
+fn parse_comp_format<T, D>(input: &mut &'_ str) -> PResult<Comparison<T>>
 where
-    Def: Parseable,
-    Def: Into<Typ>,
+    D: Parseable + Into<T>,
 {
-    let outer = cut_err(alt((
-        preceded("+", Def::parse).map(Comparison::GreaterThan),
-        preceded("-", Def::parse).map(Comparison::LesserThan),
-        cut_err(Def::parse).map(Comparison::Equal),
+    cut_err(alt((
+        preceded("+", D::parse).map(|v| Comparison::GreaterThan(v.into())),
+        preceded("-", D::parse).map(|v| Comparison::LesserThan(v.into())),
+        cut_err(D::parse).map(|v| Comparison::Equal(v.into())),
     )))
     .context(StrContext::Label("comparison"))
-    .parse_next(input)?;
-
-    match outer {
-        Comparison::Equal(p) => Ok(Comparison::Equal(p.into())),
-        Comparison::GreaterThan(p) => Ok(Comparison::GreaterThan(p.into())),
-        Comparison::LesserThan(p) => Ok(Comparison::LesserThan(p.into())),
-    }
+    .parse_next(input)
 }
 
-fn parse_comp<P>(input: &mut &'_ str) -> PResult<Comparison<P>>
+impl<P> Parseable for Comparison<P>
 where
     P: Parseable,
 {
-    parse_comp_format::<P, P>(input)
+    fn parse(input: &mut &'_ str) -> PResult<Comparison<P>> {
+        parse_comp_format::<P, P>(input)
+    }
 }
 
-pub fn parse_global_option(input: &mut &'_ str) -> PResult<GlobalOption> {
-    alt((
-        literal("-depth").value(GlobalOption::Depth),
-        unary!("-maxdepth", GlobalOption::MaxDepth, u32::parse),
-        unary!("-mindepth", GlobalOption::MinDepth, u32::parse),
-        unary!("-threads", GlobalOption::Threads, u32::parse),
-    ))
-    .context(StrContext::Label("global_option"))
-    .parse_next(input)
-}
-
-pub fn parse_positional(input: &mut &'_ str) -> PResult<PositionalOption> {
-    literal("nope")
-        .value(PositionalOption::XDev)
-        .context(StrContext::Label("positional_option"))
+impl Parseable for GlobalOption {
+    fn parse(input: &mut &'_ str) -> PResult<GlobalOption> {
+        alt((
+            literal("-depth").value(GlobalOption::Depth),
+            unary!("-maxdepth", GlobalOption::MaxDepth, u32::parse),
+            unary!("-mindepth", GlobalOption::MinDepth, u32::parse),
+            unary!("-threads", GlobalOption::Threads, u32::parse),
+        ))
+        .context(StrContext::Label("global_option"))
         .parse_next(input)
+    }
 }
 
-pub fn parse_action(input: &mut &'_ str) -> PResult<Action> {
-    let fmt = alt((
-        delimited("\"", take_until(0.., "\""), "\""),
-        delimited("'", take_until(0.., "'"), "'"),
-        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
-    ));
+impl Parseable for PositionalOption {
+    fn parse(input: &mut &'_ str) -> PResult<PositionalOption> {
+        literal("nope")
+            .value(PositionalOption::XDev)
+            .context(StrContext::Label("positional_option"))
+            .parse_next(input)
+    }
+}
 
-    alt((
-        unary!("-fls", Action::FileList, String::parse),
-        unary!("-fprint0", Action::FilePrintNull, String::parse),
-        //unary!("-fprintf", Action::FilePrintFormatted, String::parse),
-        unary!("-fprint", Action::FilePrint, String::parse),
-        terminated("-ls", multispace0).value(Action::List),
-        preceded(
-            "-printf",
-            cut_err(preceded(
-                multispace1,
-                fmt.and_then(|&mut mut out: &mut &str| Vec::<FormatElement>::parse(&mut out)),
+impl Parseable for Action {
+    fn parse(input: &mut &'_ str) -> PResult<Action> {
+        alt((
+            unary!("-fls", Action::FileList, String::parse),
+            unary!("-fprint0", Action::FilePrintNull, String::parse),
+            preceded(
+                "-fprintf",
+                cut_err(preceded(
+                    multispace1,
+                    separated_pair(
+                        String::parse,
+                        multispace1,
+                        parse_string_stream!().and_then(|&mut mut out: &mut &str| {
+                            Vec::<FormatElement>::parse(&mut out)
+                        }),
+                    ),
+                )),
+            )
+            .map(|(f, t)| Action::FilePrintFormatted(f, t)),
+            unary!("-fprint", Action::FilePrint, String::parse),
+            terminated("-ls", multispace0).value(Action::List),
+            preceded(
+                "-printf",
+                cut_err(preceded(
+                    multispace1,
+                    parse_string_stream!()
+                        .and_then(|&mut mut out: &mut &str| Vec::<FormatElement>::parse(&mut out)),
+                )),
+            )
+            .map(Action::PrintFormatted),
+            terminated("-print0", multispace0).value(Action::PrintNull),
+            terminated("-print", multispace0).value(Action::Print),
+            terminated("-prune", multispace0).value(Action::Prune),
+            terminated("-quit", multispace0).value(Action::Quit),
+        ))
+        .context(StrContext::Label("action"))
+        .parse_next(input)
+    }
+}
+
+impl Parseable for Test {
+    fn parse(input: &mut &'_ str) -> PResult<Test> {
+        alt((
+            alt((
+                unary!(
+                    "-amin",
+                    Test::AccessTime,
+                    parse_comp_format::<TimeSpec, MinDefault>
+                ),
+                unary!("-anewer", Test::AccessNewer, String::parse),
+                unary!(
+                    "-atime",
+                    Test::AccessTime,
+                    parse_comp_format::<TimeSpec, DayDefault>
+                ),
+                unary!(
+                    "-cmin",
+                    Test::ChangeTime,
+                    parse_comp_format::<TimeSpec, MinDefault>
+                ),
+                unary!("-cnewer", Test::ChangeNewer, String::parse),
+                unary!(
+                    "-ctime",
+                    Test::ChangeTime,
+                    parse_comp_format::<TimeSpec, DayDefault>
+                ),
+                literal("-empty").value(Test::Empty),
+                literal("-executable").value(Test::Executable),
+                literal("-false").value(Test::False),
+                unary!("-fstype", Test::FsType, String::parse),
+                unary!("-gid", Test::GroupId, Comparison::<u32>::parse),
+                unary!("-group", Test::Group, String::parse),
+                unary!("-ilname", Test::InsensitiveLinkName, String::parse),
+                unary!("-iname", Test::InsensitiveName, String::parse),
+                unary!("-inum", Test::InodeNumber, Comparison::<u32>::parse),
+                unary!("-ipath", Test::InsensitivePath, String::parse),
+                unary!("-iregex", Test::InsensitiveRegex, String::parse),
+                unary!("-links", Test::Links, Comparison::<u64>::parse),
+                unary!(
+                    "-mmin",
+                    Test::ModifyTime,
+                    parse_comp_format::<TimeSpec, MinDefault>
+                ),
+                unary!("-mnewer", Test::ModifyNewer, String::parse),
+                unary!(
+                    "-mtime",
+                    Test::ModifyTime,
+                    parse_comp_format::<TimeSpec, DayDefault>
+                ),
             )),
-        )
-        .map(Action::PrintFormatted),
-        terminated("-print0", multispace0).value(Action::PrintNull),
-        terminated("-print", multispace0).value(Action::Print),
-        terminated("-prune", multispace0).value(Action::Prune),
-        terminated("-quit", multispace0).value(Action::Quit),
-    ))
-    .context(StrContext::Label("action"))
-    .parse_next(input)
-}
-
-pub fn parse_test(input: &mut &'_ str) -> PResult<Test> {
-    alt((
-        alt((
-            unary!(
-                "-amin",
-                Test::AccessTime,
-                parse_comp_format::<TimeSpec, MinDefault>
-            ),
-            unary!("-anewer", Test::AccessNewer, String::parse),
-            unary!(
-                "-atime",
-                Test::AccessTime,
-                parse_comp_format::<TimeSpec, DayDefault>
-            ),
-            unary!(
-                "-cmin",
-                Test::ChangeTime,
-                parse_comp_format::<TimeSpec, MinDefault>
-            ),
-            unary!("-cnewer", Test::ChangeNewer, String::parse),
-            unary!(
-                "-ctime",
-                Test::ChangeTime,
-                parse_comp_format::<TimeSpec, DayDefault>
-            ),
-            literal("-empty").value(Test::Empty),
-            literal("-executable").value(Test::Executable),
-            literal("-false").value(Test::False),
-            unary!("-fstype", Test::FsType, String::parse),
-            unary!("-gid", Test::GroupId, parse_comp::<u32>),
-            unary!("-group", Test::Group, String::parse),
-            unary!("-ilname", Test::InsensitiveLinkName, String::parse),
-            unary!("-iname", Test::InsensitiveName, String::parse),
-            unary!("-inum", Test::InodeNumber, parse_comp::<u32>),
-            unary!("-ipath", Test::InsensitivePath, String::parse),
-            unary!("-iregex", Test::InsensitiveRegex, String::parse),
-            unary!("-links", Test::Links, parse_comp::<u64>),
-            unary!(
-                "-mmin",
-                Test::ModifyTime,
-                parse_comp_format::<TimeSpec, MinDefault>
-            ),
-            unary!("-mnewer", Test::ModifyNewer, String::parse),
-            unary!(
-                "-mtime",
-                Test::ModifyTime,
-                parse_comp_format::<TimeSpec, DayDefault>
-            ),
-        )),
-        alt((
-            unary!("-name", Test::Name, String::parse),
-            literal("-nouser").value(Test::NoGroup),
-            literal("-nogroup").value(Test::NoUser),
-            unary!("-path", Test::Path, String::parse),
-            unary!("-perm", Test::Perm, PermCheck::parse),
-            literal("-readable").value(Test::Readable),
-            unary!("-regex", Test::Regex, String::parse),
-            unary!("-samefile", Test::Samefile, String::parse),
-            unary!("-size", Test::Size, parse_comp::<Size>),
-            literal("-true").value(Test::True),
-            unary!("-type", Test::Type, Vec::<FileType>::parse),
-            unary!("-uid", Test::UserId, parse_comp::<u32>),
-            unary!("-user", Test::User, String::parse),
-            literal("-writable").value(Test::Writable),
-        )),
-    ))
-    .context(StrContext::Label("test"))
-    .parse_next(input)
+            alt((
+                unary!("-name", Test::Name, String::parse),
+                literal("-nouser").value(Test::NoGroup),
+                literal("-nogroup").value(Test::NoUser),
+                unary!("-path", Test::Path, String::parse),
+                unary!("-perm", Test::Perm, PermCheck::parse),
+                literal("-readable").value(Test::Readable),
+                unary!("-regex", Test::Regex, String::parse),
+                unary!("-samefile", Test::Samefile, String::parse),
+                unary!("-size", Test::Size, Comparison::<Size>::parse),
+                literal("-true").value(Test::True),
+                unary!("-type", Test::Type, Vec::<FileType>::parse),
+                unary!("-uid", Test::UserId, Comparison::<u32>::parse),
+                unary!("-user", Test::User, String::parse),
+                literal("-writable").value(Test::Writable),
+            )),
+        ))
+        .context(StrContext::Label("test"))
+        .parse_next(input)
+    }
 }
 
 /// [Expression](crate::ast::Expression) most basic components.
@@ -232,10 +244,10 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         // as an expression, eg `-atime` does not become `[Token::And, "time"]`
         terminated(alt(("-or", "-o")), alt((multispace1, eof))).value(Token::Or),
         terminated(alt(("-and", "-a")), alt((multispace1, eof))).value(Token::And),
-        parse_test.map(Token::Test),
-        parse_action.map(Token::Action),
-        parse_global_option.map(Token::Global),
-        parse_positional.map(Token::Positional),
+        Test::parse.map(Token::Test),
+        Action::parse.map(Token::Action),
+        GlobalOption::parse.map(Token::Global),
+        PositionalOption::parse.map(Token::Positional),
         preceded(
             any,
             fail.context(StrContext::Expected(StrContextValue::Description(
@@ -243,7 +255,7 @@ pub fn token(input: &mut &str) -> PResult<Token> {
             ))),
         ),
     ))
-    .context(StrContext::Label("token"))
+    .context(StrContext::Label("syntax"))
     .parse_next(input)
 }
 
@@ -253,7 +265,7 @@ fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     winnow::Parser::<&str, Vec<GlobalOption>, winnow::error::ContextError>::parse_next(
         &mut preceded(
             multispace0,
-            repeat(0.., terminated(parse_global_option, multispace0)),
+            repeat(0.., terminated(GlobalOption::parse, multispace0)),
         ),
         input,
     )?
@@ -294,6 +306,7 @@ fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     ))
 }
 
+/// Entrypoint of the parsing module.
 pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
     // Get a reference to the input to modify while parsing
     let mut input: &str = input.as_ref();
@@ -315,13 +328,13 @@ pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
 
 #[test]
 fn test_parse_comparison_uint() -> Result<(), Box<dyn std::error::Error>> {
-    let res = parse_comp::<u32>(&mut "44").unwrap();
+    let res = Comparison::<u32>::parse(&mut "44").unwrap();
     assert_eq!(Comparison::Equal(44), res);
 
-    let res = parse_comp::<u32>(&mut "+44").unwrap();
+    let res = Comparison::<u32>::parse(&mut "+44").unwrap();
     assert_eq!(Comparison::GreaterThan(44), res);
 
-    let res = parse_comp::<u32>(&mut "-44").unwrap();
+    let res = Comparison::<u32>::parse(&mut "-44").unwrap();
     assert_eq!(Comparison::LesserThan(44), res);
 
     Ok(())
@@ -329,10 +342,10 @@ fn test_parse_comparison_uint() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_parse_comparison_uint_error() {
-    let res = parse_comp::<u32>(&mut "not an int");
+    let res = Comparison::<u32>::parse(&mut "not an int");
     assert!(res.is_err());
 
-    let res = parse_comp::<u32>(&mut "@44");
+    let res = Comparison::<u32>::parse(&mut "@44");
     assert!(res.is_err());
 }
 

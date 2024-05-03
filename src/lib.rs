@@ -289,4 +289,11 @@ mod find_compilation {
             "-printf \"%p,%U,%G,%m,%s,%A@,%C@,%T@,%{projid},%{fid}\\n\""
         ));
     }
+
+    #[test]
+    fn test_fprintf() {
+        insta::assert_snapshot!(parse_and_compile(
+            "-fprintf user_files.txt \"%p,%U,%{fid}\\n\""
+        ));
+    }
 }

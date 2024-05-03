@@ -1,0 +1,17 @@
+---
+source: src/lib.rs
+assertion_line: 295
+expression: "parse_and_compile(\"-fprintf user_files.txt \\\"%p,%U,%{fid}\\\\n\\\"\")"
+---
+(use-modules (lipe) (lipe find))
+
+(let* ((%lf3:port:0 (open-file "user_files.txt" "w")) (%lf3:mutex:1 (make-mutex)) (%lf3:print:2 (make-printer %lf3:port:0 %lf3:mutex:1 #f)))
+  (dynamic-wind
+    (lambda () #t)
+    (lambda () (lipe-scan
+        "/"
+        (lipe-getopt-client-mount-path)
+        (lambda () (%lf3:print:2 (format #f "~a,~d,~a\n" (absolute-path) (uid) (file-fid))))
+        (lipe-getopt-required-attrs)
+        (lipe-getopt-thread-count)))
+    (lambda () (close-port %lf3:port:0))))
