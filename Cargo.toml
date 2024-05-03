@@ -5,8 +5,9 @@ edition = "2021"
 authors = ["JB <jb.skutnik@gmail.com>"]
 
 [dependencies]
+bitflags = "2.5.0"
+libc = "0.2.154"
 log = "0.4.21"
-nix = { version = "0.28.0", features = ["fs"] }
 winnow = "0.6.5"
 
 [dev-dependencies]

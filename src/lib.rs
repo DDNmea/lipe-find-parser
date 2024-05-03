@@ -1,9 +1,10 @@
 pub mod ast;
 mod find_parser;
+mod permission_flags;
 mod scheme;
 
 pub use find_parser::parse;
-pub use nix::sys::stat::{Mode, SFlag};
+pub use permission_flags::{Mode, SFlag};
 pub use scheme::compile;
 
 /// Convenience struct to collect the [ast::GlobalOption] passed on the command line.
