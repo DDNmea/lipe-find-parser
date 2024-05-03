@@ -7,7 +7,6 @@ use crate::ast::{
 use crate::Mode;
 use crate::SFlag;
 use std::rc::Rc;
-use std::time::Instant;
 
 macro_rules! format_cmp {
     ($cmp:expr, $target:expr) => {
@@ -29,8 +28,6 @@ macro_rules! format_cmp {
 
 #[derive(Debug, Clone, PartialEq)]
 struct SchemeManager {
-    invocation: Instant,
-
     init: Vec<String>,
     fini: Vec<String>,
 
@@ -41,7 +38,6 @@ struct SchemeManager {
 impl Default for SchemeManager {
     fn default() -> Self {
         SchemeManager {
-            invocation: Instant::now(),
             init: vec![],
             fini: vec![],
             var_index: 0usize,
