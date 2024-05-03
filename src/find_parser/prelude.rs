@@ -14,16 +14,6 @@ pub use winnow::{
     token::{any, literal, one_of, take_until, take_while},
 };
 
-macro_rules! parse_string_stream {
-    () => {
-        alt((
-            delimited("\"", take_until(0.., "\""), "\""),
-            delimited("'", take_until(0.., "'"), "'"),
-            take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
-        ))
-    };
-}
-
 /// Trait used to add the ability to parse arbitrary types
 pub trait Parseable {
     fn parse(input: &mut &str) -> PResult<Self>
@@ -61,9 +51,21 @@ impl Parseable for u64 {
     }
 }
 
+/// Delimit a string from the input and return it with no processing
+///
+/// This function is similar to the parse trait for streams of characters. This allows to chain
+/// another parser on top of the output, which is impossible if we return a string.
+pub fn quote_delimiter<'a>() -> impl Parser<&'a str, &'a str, winnow::error::ContextError> {
+    alt((
+        delimited("\"", take_until(0.., "\""), "\""),
+        delimited("'", take_until(0.., "'"), "'"),
+        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+    ))
+}
+
 impl Parseable for String {
     fn parse(input: &mut &str) -> PResult<String> {
-        parse_string_stream!()
+        quote_delimiter()
             .context(StrContext::Expected(StrContextValue::Description("string")))
             .map(String::from)
             .parse_next(input)

@@ -2,7 +2,6 @@ mod filetype;
 mod format;
 mod permission;
 mod precedence;
-#[macro_use]
 mod prelude;
 mod size;
 mod timespec;
@@ -86,9 +85,7 @@ impl Parseable for Action {
                     separated_pair(
                         String::parse,
                         multispace1,
-                        parse_string_stream!().and_then(|&mut mut out: &mut &str| {
-                            Vec::<FormatElement>::parse(&mut out)
-                        }),
+                        quote_delimiter().and_then(Vec::<FormatElement>::parse),
                     ),
                 )),
             )
@@ -99,8 +96,7 @@ impl Parseable for Action {
                 "-printf",
                 cut_err(preceded(
                     multispace1,
-                    parse_string_stream!()
-                        .and_then(|&mut mut out: &mut &str| Vec::<FormatElement>::parse(&mut out)),
+                    quote_delimiter().and_then(Vec::<FormatElement>::parse),
                 )),
             )
             .map(Action::PrintFormatted),
