@@ -35,8 +35,13 @@ pub fn setup() -> Result<(), JsValue> {
 
     {
         let closure = Closure::<dyn FnMut(_)>::new(move |_event: web_sys::Event| {
+            let _ = error_reset();
+
             if let Err(val) = update() {
-                log::debug!("Error updating: {:#?}", val);
+                let _ = error(val).is_err_and(|e| {
+                    log::error!("Failed to display error: {}", e.as_string().unwrap());
+                    true
+                });
             }
         });
 
@@ -45,6 +50,34 @@ pub fn setup() -> Result<(), JsValue> {
     }
 
     update()
+}
+
+fn error_reset() -> Result<(), JsValue> {
+    let document = get_document()?;
+
+    let error_display = document
+        .query_selector("div#error")?
+        .ok_or("No AST div !")?;
+
+    error_display.set_class_name("");
+    Ok(())
+}
+
+fn error(message: JsValue) -> Result<(), JsValue> {
+    let document = get_document()?;
+
+    let error_display = document
+        .query_selector("div#error")?
+        .ok_or("No error div !")?;
+
+    error_display.set_class_name("active");
+    let error_contents = error_display
+        .query_selector("div#contents")?
+        .ok_or("No contents div !")?;
+
+    error_contents.set_inner_html(&html_escape::encode_text(&message.as_string().unwrap()));
+
+    Ok(())
 }
 
 fn update() -> Result<(), JsValue> {

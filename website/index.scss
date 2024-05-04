@@ -2,6 +2,7 @@
 
 body {
     background: #282828;
+    overflow: hidden;
     color: #ebdbb2;
 }
 
@@ -37,6 +38,10 @@ body {
     &:focus {
         outline: none;
     }
+}
+
+#output {
+    position: relative;
 }
 
 #data {
@@ -76,6 +81,31 @@ pre {
     @include block-element();
     margin: 0;
     text-wrap: wrap;
+}
+
+#error {
+    position: absolute;
+    top: -15px;
+    bottom: -15px;
+    left: -15px;
+    right: -15px;
+    display: none;
+    backdrop-filter: blur(10px);
+
+    flex-flow: row;
+    align-items: center;
+    justify-content: center;
+
+    &.active {
+        display: flex;
+    }
+
+    #contents {
+        width: 80%;
+        @include monospace();
+        font-size: 1.8rem;
+        color: #fb4934;
+    }
 }
 
 @media (width <=940px) {

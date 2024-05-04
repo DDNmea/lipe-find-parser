@@ -1,24 +1,30 @@
 <html>
 
 <head>
-    <link data-trunk rel="scss" href="./index.scss"/>
+    <link data-trunk rel="scss" href="./index.scss" />
 </head>
 
 <body>
     <input id=expression></input>
-    <div id=data>
-        <div id=tokens></div>
-        <div id=options>
-            <span class=title>Defined options</span>
-            <pre id=options></pre>
+    <div id=output>
+        <div id=data>
+            <div id=tokens></div>
+            <div id=options>
+                <span class=title>Defined options</span>
+                <pre id=options></pre>
+            </div>
+            <div id=ast>
+                <span class=title>Generated AST</span>
+                <pre id=ast></pre>
+            </div>
+            <div id=Scheme>
+                <span class=title>LiPE scheme code</span>
+                <pre id=scheme></pre>
+            </div>
         </div>
-        <div id=ast>
-            <span class=title>Generated AST</span>
-            <pre id=ast></pre>
-        </div>
-        <div id=Scheme>
-            <span class=title>LiPE scheme code</span>
-            <pre id=scheme></pre>
+        <div id=error>
+            <div id=contents>
+            </div>
         </div>
     </div>
 </body>
