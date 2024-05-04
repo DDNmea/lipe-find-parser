@@ -1,0 +1,56 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build and deploy project to github pages
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "master" branch
+  push:
+    branches: [ "master" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - uses: moonrepo/setup-rust@v1
+
+      - name: Install trunk
+        uses: jetli/trunk-action@v0.5.0
+        with:
+          version: 'latest'
+
+      - name: Setup pages
+        id: configure
+        uses: actions/configure-pages@v4
+
+      # Runs a single command using the runners shell
+      - name: install wasm target
+        run: rustup target add wasm32-unknown-unknown && cd $GITHUB_WORKSPACE/website && trunk build --release --public-url "${{steps.configure.outputs.base_url}}"
+
+      - name: Upload built files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './website/dist'
+
+      - name: Deploy to GitHub pages
+        id: deployment
+        uses: actions/deploy-pages@v4

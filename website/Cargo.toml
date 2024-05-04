@@ -1,0 +1,36 @@
+[package]
+name = "lipe-parser-website"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lipe-find-parser.path = ".."
+log = "0.4.21"
+wasm-bindgen = "0.2.92"
+wasm-logger = "0.2.0"
+
+[dependencies.web-sys]
+version = "0.3.4"
+features = [
+  'CssStyleDeclaration',
+  'Document',
+  'DomRect',
+  'DomTokenList',
+  'Element',
+  'History',
+  'HtmlCollection',
+  'HtmlElement',
+  'HtmlInputElement',
+  'IntersectionObserver',
+  'IntersectionObserverEntry',
+  'IntersectionObserverInit',
+  'KeyEvent',
+  'KeyboardEvent',
+  'Location',
+  'MouseEvent',
+  'Node',
+  'NodeList',
+  'Storage',
+  'UrlSearchParams',
+  'Window',
+]

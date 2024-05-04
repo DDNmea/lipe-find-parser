@@ -1,2 +1,4 @@
 /target
+/website/target
+/website/dist
 *.snap.new
