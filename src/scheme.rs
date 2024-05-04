@@ -533,6 +533,8 @@ impl Scheme for Action {
                 buffer.push_str(&format!(")"));
             }
 
+            Action::PrintFid => buffer.push_str("(print-file-fid)"),
+
             Action::Quit => buffer.push_str("(lipe-scan-break 0)"),
 
             Action::Prune | Action::List | Action::FileList(_) => log::error!("Unsupported action"),

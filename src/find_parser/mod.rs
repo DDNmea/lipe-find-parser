@@ -100,6 +100,7 @@ impl Parseable for Action {
                 )),
             )
             .map(Action::PrintFormatted),
+            terminated("-print-file-fid", multispace0).value(Action::PrintFid),
             terminated("-print0", multispace0).value(Action::PrintNull),
             terminated("-print", multispace0).value(Action::Print),
             terminated("-prune", multispace0).value(Action::Prune),

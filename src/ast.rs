@@ -242,6 +242,7 @@ pub enum Action {
     Print,
     PrintNull,
     PrintFormatted(Vec<FormatElement>),
+    PrintFid,
     Prune,
     Quit,
 
