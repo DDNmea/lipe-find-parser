@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+html-escape = "0.2.13"
 lipe-find-parser.path = ".."
 log = "0.4.21"
 wasm-bindgen = "0.2.92"

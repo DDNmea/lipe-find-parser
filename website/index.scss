@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Sans+Mono:ital,wght@0,400..700;1,400..700&display=swap');
+
+body {
+    background: #282828;
+    color: #ebdbb2;
+}
+
+@mixin block-element () {
+    background: #504945;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+@mixin monospace () {
+    font-family: "Ubuntu Sans Mono", monospace;
+    font-weight: bold;
+}
+
+.title {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    @include monospace();
+}
+
+#expression {
+    width: 100%;
+    font-size: 1.7em;
+    color: #ebdbb2;
+    border: none;
+    @include monospace();
+    @include block-element();
+
+    &:focus {
+        outline: none;
+    }
+}
+
+#data {
+    margin: 1em 0 1em 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+        "options ast" "scheme scheme";
+    grid-gap: 15px;
+
+    div {
+        display: flex;
+        flex-flow: column nowrap;
+        gap: .3rem;
+    }
+}
+
+div#options {
+    grid-area: options;
+
+    pre {
+        @include monospace();
+    }
+}
+
+#ast {
+    grid-area: ast;
+    @include monospace();
+}
+
+#scheme {
+    grid-area: scheme;
+    @include monospace();
+}
+
+pre {
+    @include block-element();
+    margin: 0;
+    text-wrap: wrap;
+}
+
+@media (width <=940px) {
+    #data {
+        margin: 1em 0 1em 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "options" "ast" "scheme";
+    }
+}

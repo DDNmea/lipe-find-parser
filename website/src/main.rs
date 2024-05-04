@@ -68,7 +68,7 @@ fn update() -> Result<(), JsValue> {
 
     let ast = document.query_selector("pre#ast")?.ok_or("No AST div !")?;
     let options = document
-        .query_selector("div#options")?
+        .query_selector("pre#options")?
         .ok_or("No option div !")?;
 
     let scheme = document
@@ -76,11 +76,14 @@ fn update() -> Result<(), JsValue> {
         .ok_or("No scheme div !")?;
 
     let (opt, exp) = parse(expression).map_err(|err| err.to_string())?;
-    ast.set_inner_html(&format!("{:#?}", exp));
-    options.set_inner_html(&format!("{:?}", opt));
+    ast.set_inner_html(&html_escape::encode_text(&format!("{:#?}", exp)));
+    options.set_inner_html(&format!("{:#?}", opt));
 
     let code = compile(&exp, &opt);
-    scheme.set_inner_html(&format!("{}", code("[DEVICE PATH]")));
+    scheme.set_inner_html(&html_escape::encode_text(&format!(
+        "{}",
+        code("[DEVICE PATH]")
+    )));
 
     //let subtitle = document.query_selector("div.subtitle")?.ok_or("No subtitle div !")?;
 
