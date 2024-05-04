@@ -6,6 +6,7 @@ authors = ["JB <jb.skutnik@gmail.com>"]
 
 [dependencies]
 bitflags = "2.5.0"
+instant = { version = "0.1.12", features = ["web-sys", "now", "wasm-bindgen"] }
 log = "0.4.21"
 winnow = "0.6.5"
 

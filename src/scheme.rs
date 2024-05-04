@@ -8,6 +8,11 @@ use crate::Mode;
 use crate::SFlag;
 use std::rc::Rc;
 
+#[cfg(target_arch = "wasm32")]
+use instant::SystemTime;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::SystemTime;
+
 macro_rules! format_cmp {
     ($cmp:expr, $target:expr) => {
         match $cmp {
@@ -198,8 +203,8 @@ fn compile_size_comp(buffer: &mut String, comp: &Comparison<Size>) {
 }
 
 fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpec>) {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
     let quotient = move |t: &TimeSpec| format!("quotient (- {secs} ({field})) {}", t.secs());
@@ -555,6 +560,8 @@ impl Scheme for Expression {
             Expression::Positional(p) => p.compile(buffer, ctx),
             Expression::Global(_) => unreachable!(),
         }
+
+        log::debug!("{:?} => {buffer}", self);
     }
 }
 
@@ -573,6 +580,7 @@ pub fn compile<S: AsRef<str>>(
             Expression::Action(Action::DefaultPrint),
         )));
 
+        log::debug!("Compiling {:?}", exp);
         wrapper.compile(&mut buffer, &mut manager);
     } else {
         exp.compile(&mut buffer, &mut manager);
