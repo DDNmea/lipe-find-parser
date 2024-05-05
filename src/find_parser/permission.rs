@@ -45,13 +45,10 @@ impl Parseable for PartialPermission {
     fn parse(input: &mut &str) -> PResult<PartialPermission> {
         let (target, operator, level) = (
             take_while(1.., |c| "ugoa".contains(c)),
-            cut_err(one_of(|c| "+=-".contains(c)).context(StrContext::Expected(
-                StrContextValue::Description("symbolic_permission_symbol"),
-            ))),
+            cut_err(one_of(|c| "+=-".contains(c)).context(expected("symbolic_permission_symbol"))),
             cut_err(
-                take_while(1.., |c| "rwx".contains(c)).context(StrContext::Expected(
-                    StrContextValue::Description("symbolic_permission_level"),
-                )),
+                take_while(1.., |c| "rwx".contains(c))
+                    .context(expected("symbolic_permission_level")),
             ),
         )
             .parse_next(input)?;
@@ -109,9 +106,7 @@ impl Parseable for PermCheck {
             preceded("-", Permission::parse).map(PermCheck::AtLeast),
             cut_err(Permission::parse).map(PermCheck::Equal),
         )))
-        .context(StrContext::Expected(StrContextValue::Description(
-            "permission_comparison",
-        )))
+        .context(expected("permission_comparison"))
         .parse_next(input)
     }
 }

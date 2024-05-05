@@ -28,7 +28,7 @@ macro_rules! unary {
             $identifier,
             cut_err(preceded(multispace1, cut_err($parser))),
         )
-        .context(StrContext::Label($identifier))
+        .context(label($identifier))
         .map($transform)
     };
 }
@@ -42,7 +42,7 @@ where
         preceded("-", D::parse).map(|v| Comparison::LesserThan(v.into())),
         cut_err(D::parse).map(|v| Comparison::Equal(v.into())),
     )))
-    .context(StrContext::Label("comparison"))
+    .context(label("comparison"))
     .parse_next(input)
 }
 
@@ -63,7 +63,7 @@ impl Parseable for GlobalOption {
             unary!("-mindepth", GlobalOption::MinDepth, u32::parse),
             unary!("-threads", GlobalOption::Threads, u32::parse),
         ))
-        .context(StrContext::Label("global_option"))
+        .context(label("global_option"))
         .parse_next(input)
     }
 }
@@ -72,7 +72,7 @@ impl Parseable for PositionalOption {
     fn parse(input: &mut &'_ str) -> PResult<PositionalOption> {
         literal("nope")
             .value(PositionalOption::XDev)
-            .context(StrContext::Label("positional_option"))
+            .context(label("positional_option"))
             .parse_next(input)
     }
 }
@@ -85,19 +85,15 @@ impl Parseable for Action {
                 preceded(
                     multispace1,
                     separated_pair(
-                        String::parse.context(StrContext::Expected(StrContextValue::Description(
-                            "filename",
-                        ))),
+                        String::parse.context(expected("filename")),
                         multispace1,
                         quote_delimiter().and_then(Vec::<FormatElement>::parse),
                     ),
                 )
-                .context(StrContext::Expected(StrContextValue::Description(
-                    "file_and_format",
-                ))),
+                .context(expected("file_and_format")),
             ),
         )
-        .context(StrContext::Label("-fprintf"));
+        .context(label("-fprintf"));
 
         let printf = preceded(
             "-printf",
@@ -106,15 +102,13 @@ impl Parseable for Action {
                 quote_delimiter().and_then(Vec::<FormatElement>::parse),
             )),
         )
-        .context(StrContext::Label("-printf"));
+        .context(label("-printf"));
 
         alt((
             unary!(
                 "-fls",
                 Action::FileList,
-                String::parse.context(StrContext::Expected(StrContextValue::Description(
-                    "filename"
-                )))
+                String::parse.context(expected("filename"))
             ),
             fprintf.map(|(f, t)| Action::FilePrintFormatted(f, t)),
             unary!("-fprint0", Action::FilePrintNull, String::parse),
@@ -127,7 +121,7 @@ impl Parseable for Action {
             terminated("-prune", multispace0).value(Action::Prune),
             terminated("-quit", multispace0).value(Action::Quit),
         ))
-        .context(StrContext::Label("action"))
+        .context(label("action"))
         .parse_next(input)
     }
 }
@@ -199,7 +193,7 @@ impl Parseable for Test {
                 literal("-writable").value(Test::Writable),
             )),
         ))
-        .context(StrContext::Label("test"))
+        .context(label("test"))
         .parse_next(input)
     }
 }
@@ -266,11 +260,9 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         Action::parse.map(Token::Action),
         GlobalOption::parse.map(Token::Global),
         PositionalOption::parse.map(Token::Positional),
-        fail.context(StrContext::Expected(StrContextValue::Description(
-            "invalid_token",
-        ))),
+        fail.context(expected("invalid_token")),
     ))
-    .context(StrContext::Label("syntax"))
+    .context(label("syntax"))
     .parse_next(input)
 }
 

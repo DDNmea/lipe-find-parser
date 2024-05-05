@@ -11,13 +11,12 @@ impl DefaultParseable<u64> for TimeSpec {
                 _ => unreachable!(),
             }),
             // Same as above
-            terminated(digit1, alpha1).and_then(cut_err(fail.context(StrContext::Expected(
-                StrContextValue::Description("invalid_time_specifier"),
-            )))),
+            terminated(digit1, alpha1)
+                .and_then(cut_err(fail.context(expected("invalid_time_specifier")))),
             // Here the default is the user-defined closure given as an argument
             u64::parse.map(default),
         ))
-        .context(StrContext::Label("timespec"))
+        .context(label("timespec"))
         .parse_next(input)
     }
 }

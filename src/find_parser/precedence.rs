@@ -9,7 +9,7 @@ use std::rc::Rc;
 /// Precedence parser entry point
 pub fn parser(input: &mut &[Token]) -> PResult<Exp> {
     let out = repeat_till(1.., list, eof)
-        .context(StrContext::Label("grammar"))
+        .context(label("grammar"))
         .parse_next(input)
         .map(|(list, _): (Vec<Exp>, _)| list)?;
 
@@ -26,9 +26,7 @@ fn list(input: &mut &[Token]) -> PResult<Exp> {
         0..,
         preceded(
             one_of(Token::Comma),
-            cut_err(or).context(StrContext::Expected(StrContextValue::Description(
-                "missing_list_clause",
-            ))),
+            cut_err(or).context(expected("missing_list_clause")),
         ),
     )
     .fold(
@@ -46,9 +44,7 @@ fn or(input: &mut &[Token]) -> PResult<Exp> {
         0..,
         preceded(
             one_of(Token::Or),
-            cut_err(and).context(StrContext::Expected(StrContextValue::Description(
-                "missing_or_clause",
-            ))),
+            cut_err(and).context(expected("missing_or_clause")),
         ),
     )
     .fold(
@@ -70,9 +66,7 @@ fn and(input: &mut &[Token]) -> PResult<Exp> {
         alt((
             preceded(
                 one_of(Token::And),
-                cut_err(atom).context(StrContext::Expected(StrContextValue::Description(
-                    "missing_and_clause",
-                ))),
+                cut_err(atom).context(expected("missing_and_clause")),
             ),
             atom,
         )),
@@ -102,12 +96,7 @@ fn atom(input: &mut &[Token]) -> PResult<Exp> {
         }),
         not,
         parens,
-        preceded(
-            any,
-            fail.context(StrContext::Expected(StrContextValue::Description(
-                "unexpected_token",
-            ))),
-        ),
+        preceded(any, fail.context(expected("unexpected_token"))),
     ))
     .parse_next(input)
 }
@@ -116,9 +105,7 @@ fn atom(input: &mut &[Token]) -> PResult<Exp> {
 fn not(input: &mut &[Token]) -> PResult<Exp> {
     preceded(
         one_of(Token::Not),
-        cut_err(atom).context(StrContext::Expected(StrContextValue::Description(
-            "missing_not_clause",
-        ))),
+        cut_err(atom).context(expected("missing_not_clause")),
     )
     .map(|val| Exp::Operator(Rc::new(Ope::Not(val))))
     .parse_next(input)
@@ -128,14 +115,10 @@ fn not(input: &mut &[Token]) -> PResult<Exp> {
 fn parens(input: &mut &[Token]) -> PResult<Exp> {
     delimited(
         one_of(Token::LParen),
-        cut_err(list).context(StrContext::Expected(StrContextValue::Description(
-            "missing_expression",
-        ))),
-        cut_err(one_of(Token::RParen)).context(StrContext::Expected(StrContextValue::Description(
-            "missing_closing_parenthesis",
-        ))),
+        cut_err(list).context(expected("missing_expression")),
+        cut_err(one_of(Token::RParen)).context(expected("missing_closing_parenthesis")),
     )
-    .context(StrContext::Label("parens"))
+    .context(label("parens"))
     .parse_next(input)
 }
 

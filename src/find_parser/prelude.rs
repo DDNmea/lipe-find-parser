@@ -3,16 +3,25 @@ pub use crate::ast::{
     GlobalOption, Operator as Ope, PermCheck, Permission, PositionalOption, Size, Test, TimeSpec,
 };
 pub use crate::RunOptions;
+use winnow::error::StrContext;
 pub use winnow::{
     ascii::{alpha1, digit1, multispace0, multispace1},
     combinator::{
         alt, cut_err, delimited, eof, fail, preceded, repeat, repeat_till, separated,
         separated_pair, terminated,
     },
-    error::{StrContext, StrContextValue},
+    error::{ContextError, StrContext::Label, StrContextValue},
     prelude::*,
     token::{any, literal, one_of, take_until, take_while},
 };
+
+pub fn expected(reason: &'static str) -> StrContext {
+    StrContext::Expected(StrContextValue::Description(reason))
+}
+
+pub fn label(name: &'static str) -> StrContext {
+    StrContext::Label(name)
+}
 
 /// Trait used to add the ability to parse arbitrary types
 pub trait Parseable {
@@ -33,9 +42,7 @@ impl Parseable for u32 {
     fn parse(input: &mut &str) -> PResult<u32> {
         digit1
             .try_map(|digit_str: &str| digit_str.parse::<u32>())
-            .context(StrContext::Expected(StrContextValue::Description(
-                "unsigned_integer",
-            )))
+            .context(expected("unsigned_integer"))
             .parse_next(input)
     }
 }
@@ -44,9 +51,7 @@ impl Parseable for u64 {
     fn parse(input: &mut &str) -> PResult<u64> {
         digit1
             .try_map(|digit_str: &str| digit_str.parse::<u64>())
-            .context(StrContext::Expected(StrContextValue::Description(
-                "unsigned_integer",
-            )))
+            .context(expected("unsigned_integer"))
             .parse_next(input)
     }
 }
@@ -66,7 +71,7 @@ pub fn quote_delimiter<'a>() -> impl Parser<&'a str, &'a str, winnow::error::Con
 impl Parseable for String {
     fn parse(input: &mut &str) -> PResult<String> {
         quote_delimiter()
-            .context(StrContext::Expected(StrContextValue::Description("string")))
+            .context(expected("string"))
             .map(String::from)
             .parse_next(input)
     }

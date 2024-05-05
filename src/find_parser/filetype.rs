@@ -2,11 +2,7 @@ use crate::find_parser::prelude::*;
 
 impl Parseable for FileType {
     fn parse(input: &mut &str) -> PResult<FileType> {
-        let invalid = cut_err(
-            fail.context(StrContext::Expected(StrContextValue::Description(
-                "invalid_type_specifier",
-            ))),
-        );
+        let invalid = cut_err(fail.context(expected("invalid_type_specifier")));
 
         alt((
             // If the type is more than one character long, error out
@@ -21,9 +17,7 @@ impl Parseable for FileType {
                 's' => FileType::Socket,
                 _ => unreachable!(),
             }),
-            alpha1.and_then(cut_err(fail.context(StrContext::Expected(
-                StrContextValue::Description("invalid_type_specifier"),
-            )))),
+            alpha1.and_then(cut_err(fail.context(expected("invalid_type_specifier")))),
         ))
         .parse_next(input)
     }

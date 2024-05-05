@@ -16,13 +16,12 @@ impl Parseable for Size {
             // Not very pretty, we check for a [0-9]+[a-z]+ and if met then fail with the proper
             // error. We do this once all the valid specs have been checked but before we attempt a
             // specless parse, doing so would end up leaving some junk in the input
-            terminated(digit1, alpha1).and_then(cut_err(fail.context(StrContext::Expected(
-                StrContextValue::Description("invalid_size_specifier"),
-            )))),
+            terminated(digit1, alpha1)
+                .and_then(cut_err(fail.context(expected("invalid_size_specifier")))),
             // Default. For Size this is Block
             u64::parse.map(Size::Block),
         ))
-        .context(StrContext::Label("size"))
+        .context(label("size"))
         .parse_next(input)
     }
 }
