@@ -37,12 +37,11 @@ fn parse_comp_format<T, D>(input: &mut &'_ str) -> PResult<Comparison<T>>
 where
     D: Parseable + Into<T>,
 {
-    cut_err(alt((
+    alt((
         preceded("+", D::parse).map(|v| Comparison::GreaterThan(v.into())),
         preceded("-", D::parse).map(|v| Comparison::LesserThan(v.into())),
-        D::parse.map(|v| Comparison::Equal(v.into())),
-        fail.context(expected("invalid_comparison")),
-    )))
+        cut_err(D::parse).map(|v| Comparison::Equal(v.into())),
+    ))
     .context(label("comparison"))
     .parse_next(input)
 }
@@ -182,7 +181,11 @@ impl Parseable for Test {
                 literal("-nouser").value(Test::NoGroup),
                 literal("-nogroup").value(Test::NoUser),
                 unary!("-path", Test::Path, String::parse),
-                unary!("-perm", Test::Perm, PermCheck::parse),
+                unary!(
+                    "-perm",
+                    Test::Perm,
+                    quote_delimiter().and_then(PermCheck::parse)
+                ),
                 literal("-readable").value(Test::Readable),
                 unary!("-regex", Test::Regex, String::parse),
                 unary!("-samefile", Test::Samefile, String::parse),

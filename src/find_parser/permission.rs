@@ -88,14 +88,14 @@ impl Parseable for Permission {
             take_while(3.., |c| "01234567".contains(c))
                 .map(|oct| u32::from_str_radix(oct, 8).unwrap())
                 .map(|bits| Permission(Mode::from_bits(bits).unwrap())),
-            separated(1.., cut_err(PartialPermission::parse), ",")
+            separated(1.., PartialPermission::parse, ",")
                 .map(|v: Vec<PartialPermission>| {
                     v.iter()
                         .fold(Mode::from_bits(0).unwrap(), |acc, e| e.update(acc))
                 })
                 .map(|m| Permission(m)),
+            fail.context(expected("invalid_permission_format")),
         ))
-        .context(expected("invalid_permission_format"))
         .context(label("permission"))
         .parse_next(input)
     }
@@ -103,16 +103,12 @@ impl Parseable for Permission {
 
 impl Parseable for PermCheck {
     fn parse(input: &mut &str) -> PResult<PermCheck> {
-        cut_err(alt((
+        alt((
             // We cut err in each as we have to get a permission at that point
-            preceded("/", quote_delimiter().and_then(cut_err(Permission::parse)))
-                .map(PermCheck::Any),
-            preceded("-", quote_delimiter().and_then(cut_err(Permission::parse)))
-                .map(PermCheck::AtLeast),
-            cut_err(quote_delimiter().and_then(Permission::parse))
-                .context(expected("invalid_permission_comparison"))
-                .map(PermCheck::Equal),
-        )))
+            preceded("/", cut_err(Permission::parse)).map(PermCheck::Any),
+            preceded("-", cut_err(Permission::parse)).map(PermCheck::AtLeast),
+            cut_err(Permission::parse).map(PermCheck::Equal),
+        ))
         .context(label("permission_comparison"))
         .parse_next(input)
     }
