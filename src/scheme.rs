@@ -459,7 +459,6 @@ impl Scheme for Test {
 
             => {
                 log::error!("You have used a test that is not supported by this program.");
-                todo!()
             }
         }
     }
@@ -563,7 +562,7 @@ impl Scheme for Expression {
             Expression::Global(_) => unreachable!(),
         }
 
-        log::debug!("{:?} => {buffer}", self);
+        log::trace!("{:?} => {buffer}", self);
     }
 }
 

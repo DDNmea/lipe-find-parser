@@ -8,6 +8,7 @@ authors = ["JB <jb.skutnik@gmail.com>"]
 bitflags = "2.5.0"
 instant = { version = "0.1.12", features = ["web-sys", "now", "wasm-bindgen"] }
 log = "0.4.21"
+thiserror = "1.0.59"
 winnow = "0.6.5"
 
 [dev-dependencies]

@@ -77,9 +77,11 @@ impl Parseable for FormatField {
                     delimited("{xattr:", alpha1, "}")
                         .map(|name: &str| FormatField::XAttr(String::from(name))),
                 )),
-                fail.context(StrContext::Expected(StrContextValue::Description(
-                    "invalid_format_specifier",
-                ))),
+                cut_err(
+                    fail.context(StrContext::Expected(StrContextValue::Description(
+                        "invalid_format_specifier",
+                    ))),
+                ),
             ))),
         )
         .parse_next(input)
@@ -124,6 +126,9 @@ impl Parseable for Vec<FormatElement> {
                 }
                 list
             })
+            .context(StrContext::Expected(StrContextValue::Description(
+                "format_string",
+            )))
             .parse_next(input)
     }
 }

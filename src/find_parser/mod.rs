@@ -1,3 +1,4 @@
+mod error;
 mod filetype;
 mod format;
 mod permission;
@@ -23,9 +24,12 @@ use timespec::{DayDefault, MinDefault};
 /// On error the context will contain a label with the provided identifier.
 macro_rules! unary {
     ($identifier:expr, $transform:expr, $parser:expr) => {
-        preceded($identifier, cut_err(preceded(multispace1, $parser)))
-            .context(StrContext::Label($identifier))
-            .map($transform)
+        preceded(
+            $identifier,
+            cut_err(preceded(multispace1, cut_err($parser))),
+        )
+        .context(StrContext::Label($identifier))
+        .map($transform)
     };
 }
 
@@ -75,32 +79,49 @@ impl Parseable for PositionalOption {
 
 impl Parseable for Action {
     fn parse(input: &mut &'_ str) -> PResult<Action> {
-        alt((
-            unary!("-fls", Action::FileList, String::parse),
-            unary!("-fprint0", Action::FilePrintNull, String::parse),
-            preceded(
-                "-fprintf",
-                cut_err(preceded(
+        let fprintf = preceded(
+            "-fprintf",
+            cut_err(
+                preceded(
                     multispace1,
                     separated_pair(
-                        String::parse,
+                        String::parse.context(StrContext::Expected(StrContextValue::Description(
+                            "filename",
+                        ))),
                         multispace1,
                         quote_delimiter().and_then(Vec::<FormatElement>::parse),
                     ),
-                )),
-            )
-            .map(|(f, t)| Action::FilePrintFormatted(f, t)),
+                )
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "file_and_format",
+                ))),
+            ),
+        )
+        .context(StrContext::Label("-fprintf"));
+
+        let printf = preceded(
+            "-printf",
+            cut_err(preceded(
+                multispace1,
+                quote_delimiter().and_then(Vec::<FormatElement>::parse),
+            )),
+        )
+        .context(StrContext::Label("-printf"));
+
+        alt((
+            unary!(
+                "-fls",
+                Action::FileList,
+                String::parse.context(StrContext::Expected(StrContextValue::Description(
+                    "filename"
+                )))
+            ),
+            fprintf.map(|(f, t)| Action::FilePrintFormatted(f, t)),
+            unary!("-fprint0", Action::FilePrintNull, String::parse),
             unary!("-fprint", Action::FilePrint, String::parse),
             terminated("-ls", multispace0).value(Action::List),
-            preceded(
-                "-printf",
-                cut_err(preceded(
-                    multispace1,
-                    quote_delimiter().and_then(Vec::<FormatElement>::parse),
-                )),
-            )
-            .map(Action::PrintFormatted),
             terminated("-print-file-fid", multispace0).value(Action::PrintFid),
+            printf.map(Action::PrintFormatted),
             terminated("-print0", multispace0).value(Action::PrintNull),
             terminated("-print", multispace0).value(Action::Print),
             terminated("-prune", multispace0).value(Action::Prune),
@@ -245,12 +266,9 @@ pub fn token(input: &mut &str) -> PResult<Token> {
         Action::parse.map(Token::Action),
         GlobalOption::parse.map(Token::Global),
         PositionalOption::parse.map(Token::Positional),
-        preceded(
-            any,
-            fail.context(StrContext::Expected(StrContextValue::Description(
-                "invalid_token",
-            ))),
-        ),
+        fail.context(StrContext::Expected(StrContextValue::Description(
+            "invalid_token",
+        ))),
     ))
     .context(StrContext::Label("syntax"))
     .parse_next(input)
@@ -304,23 +322,16 @@ fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
 }
 
 /// Entrypoint of the parsing module.
-pub fn parse<S: AsRef<str>>(input: S) -> PResult<(RunOptions, Exp)> {
+pub fn parse<S: AsRef<str>>(input: S) -> Result<(RunOptions, Exp), error::ParserError> {
     // Get a reference to the input to modify while parsing
     let mut input: &str = input.as_ref();
 
-    match _parse(&mut input) {
-        Err(e) => {
-            let subject = e.clone();
-            // TODO transform the below context into a user-friendly description of the mistake
-            log::error!(
-                "Error parsing input: `{}` ({:?})",
-                input,
-                subject.into_inner().unwrap().context().collect::<Vec<_>>()
-            );
-            Err(e)
-        }
-        ok => ok,
-    }
+    _parse(&mut input).or_else(|e| {
+        Err(error::ParserError::dispatch(
+            e.into_inner().unwrap(),
+            &mut input,
+        ))
+    })
 }
 
 #[test]

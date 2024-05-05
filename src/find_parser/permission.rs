@@ -109,7 +109,9 @@ impl Parseable for PermCheck {
             preceded("-", Permission::parse).map(PermCheck::AtLeast),
             cut_err(Permission::parse).map(PermCheck::Equal),
         )))
-        .context(StrContext::Label("permission_comparison"))
+        .context(StrContext::Expected(StrContextValue::Description(
+            "permission_comparison",
+        )))
         .parse_next(input)
     }
 }
