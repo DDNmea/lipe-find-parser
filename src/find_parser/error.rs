@@ -9,7 +9,6 @@ use winnow::Parser;
 //format_string
 //invalid_permission_comparison
 //invalid_token
-//invalid_type_specifier
 //missing_and_clause
 //missing_closing_parenthesis
 //missing_expression
@@ -18,11 +17,12 @@ use winnow::Parser;
 //missing_or_clause
 //permission_comparison
 //string
-//symbolic_permission_level
-//symbolic_permission_symbol
 //unexpected_token
-//unsigned_integer
 
+/// Get a human-friendly string from an error reference
+///
+/// We use [winnow::ContextError] to pass an error 'code' but it only allows `&'static str`. This
+/// method transforms the reference back into a string.
 fn explain(error_reference: &str) -> String {
     match error_reference {
         "invalid_comparison" => "Invalid comparison operator",
@@ -32,6 +32,7 @@ fn explain(error_reference: &str) -> String {
         "invalid_type_specifier" => "Found an invalid type specifier",
         "invalid_time_specifier" => "Found an invalid time specifier",
         "symbolic_permission_level" => "Found invalid symbolic permission level",
+        "symbolic_permission_symbol" => "Enountered an invalid permission symbol",
         "unsigned_integer" => "Expected an unsigned integer",
         unknown => unknown,
     }
@@ -60,7 +61,7 @@ impl From<GrammarError> for ParserError {
 
 #[derive(Debug, Error)]
 pub enum SyntaxError {
-    #[error("Failed to parse token: `{0}`")]
+    #[error("Unexpected token: `{0}`")]
     InvalidToken(String),
     #[error("Failed to parse argument `{1}` of test `{0}`: {2}")]
     InvalidTestArgument(String, String, String),
