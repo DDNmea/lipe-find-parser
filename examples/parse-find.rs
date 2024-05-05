@@ -20,14 +20,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("Args: \"{}\"", args);
 
     let mut input = args.as_str();
-    match parse(&mut input) {
-        Ok((options, exp)) => {
-            println!("Options: {:?}\nExpression: {:?}", options, exp);
-            let code = compile(&exp, &options);
-            println!("Scheme: {}", code("</path/to/device>"));
-        }
-        Err(e) => eprintln!("{}", e.to_string()),
-    }
+
+    let (options, exp) = parse(&mut input).map_err(|e| {
+        eprintln!("{}", e.to_string());
+        String::from("Failed to parse")
+    })?;
+    println!("Options: {:?}\nExpression: {:?}", options, exp);
+
+    let code = compile(&exp, &options);
+    println!("Scheme: {}", code("</path/to/device>"));
 
     Ok(())
 }

@@ -581,7 +581,6 @@ pub fn compile<S: AsRef<str>>(
             Expression::Action(Action::DefaultPrint),
         )));
 
-        log::debug!("Compiling {:?}", exp);
         wrapper.compile(&mut buffer, &mut manager);
     } else {
         exp.compile(&mut buffer, &mut manager);

@@ -40,7 +40,8 @@ where
     cut_err(alt((
         preceded("+", D::parse).map(|v| Comparison::GreaterThan(v.into())),
         preceded("-", D::parse).map(|v| Comparison::LesserThan(v.into())),
-        cut_err(D::parse).map(|v| Comparison::Equal(v.into())),
+        D::parse.map(|v| Comparison::Equal(v.into())),
+        fail.context(expected("invalid_comparison")),
     )))
     .context(label("comparison"))
     .parse_next(input)

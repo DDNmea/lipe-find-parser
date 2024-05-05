@@ -13,4 +13,4 @@ winnow = "0.6.5"
 
 [dev-dependencies]
 insta = { version = "1.38.0", features = ["yaml"] }
-simple_logger = "5.0.0"
+simple_logger = { version = "5.0.0", features = ["stderr", "colors"] }
