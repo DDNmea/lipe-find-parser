@@ -34,6 +34,7 @@ fn explain(error_reference: &str) -> String {
         "symbolic_permission_level" => "Found invalid symbolic permission level",
         "symbolic_permission_symbol" => "Enountered an invalid permission symbol",
         "unsigned_integer" => "Expected an unsigned integer",
+        "string" => "Expected a string",
         unknown => unknown,
     }
     .into()

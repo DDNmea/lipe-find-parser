@@ -62,9 +62,9 @@ impl Parseable for u64 {
 /// another parser on top of the output, which is impossible if we return a string.
 pub fn quote_delimiter<'a>() -> impl Parser<&'a str, &'a str, winnow::error::ContextError> {
     alt((
-        delimited("\"", take_until(0.., "\""), "\""),
-        delimited("'", take_until(0.., "'"), "'"),
-        take_while(0.., |c| c != ' ' && c != '\n' && c != ')'),
+        delimited("\"", take_until(1.., "\""), "\""),
+        delimited("'", take_until(1.., "'"), "'"),
+        take_while(1.., |c| c != ' ' && c != '\n' && c != ')'),
     ))
 }
 
