@@ -33,7 +33,7 @@ impl Parseable for FormatField {
     fn parse(input: &mut &str) -> PResult<FormatField> {
         preceded(
             "%",
-            cut_err(alt((
+            alt((
                 alt((
                     literal("%").value(FormatField::Percent),
                     literal("a").value(FormatField::Access),
@@ -78,22 +78,23 @@ impl Parseable for FormatField {
                         .map(|name: &str| FormatField::XAttr(String::from(name))),
                 )),
                 cut_err(fail.context(expected("invalid_format_specifier"))),
-            ))),
+            )),
         )
         .parse_next(input)
     }
 }
 
 impl Parseable for Vec<FormatElement> {
+    /// Parse a format string into a list of format string elements
     fn parse(input: &mut &str) -> PResult<Vec<FormatElement>> {
-        // First
-        let list = FormatField::parse(input)
-            .and_then(|f| Ok(vec![FormatElement::Field(f)]))
-            .unwrap_or(vec![]);
-
+        // We can conceptualize a format string as a repetition of:
+        // [literal]field|special, with a literal suffix. The below parser will repeat the first
+        // matching as long as it can, then dump the rest in a literal.
         (
+            // All of the literal + (field|special) pairs, folded neatly in a vec
             repeat(
                 0..,
+                // Match a string of length 0+ and a field or special
                 repeat_till(
                     0..,
                     any,
@@ -102,18 +103,20 @@ impl Parseable for Vec<FormatElement> {
                         FormatSpecial::parse.map(FormatElement::Special),
                     )),
                 )
+                // If the string was null, we ignore it
                 .map(|(lit, el): (String, FormatElement)| match lit.len() {
                     0 => vec![el],
                     _ => vec![FormatElement::Literal(lit), el],
                 }),
             )
             .fold(
-                move || list.to_owned(),
+                move || vec![],
                 |mut acc, e| {
                     acc.extend(e);
                     acc
                 },
             ),
+            // The suffix
             repeat(0.., any),
         )
             .map(|(mut list, suffix): (Vec<FormatElement>, String)| {
