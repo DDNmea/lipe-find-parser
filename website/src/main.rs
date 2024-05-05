@@ -89,7 +89,20 @@ fn update() -> Result<(), JsValue> {
         .dyn_into::<web_sys::HtmlInputElement>()?
         .value();
 
+    let _ = expression.trim();
+
+    let ast = document.query_selector("pre#ast")?.ok_or("No AST div !")?;
+    let options = document
+        .query_selector("pre#options")?
+        .ok_or("No option div !")?;
+    let scheme = document
+        .query_selector("pre#scheme")?
+        .ok_or("No scheme div !")?;
+
     if expression.is_empty() {
+        ast.set_inner_html("");
+        options.set_inner_html("");
+        scheme.set_inner_html("");
         return Ok(());
     }
 
@@ -98,15 +111,6 @@ fn update() -> Result<(), JsValue> {
     /*let tokens = document
     .query_selector("div#tokens")?
     .ok_or("No token div !")?;*/
-
-    let ast = document.query_selector("pre#ast")?.ok_or("No AST div !")?;
-    let options = document
-        .query_selector("pre#options")?
-        .ok_or("No option div !")?;
-
-    let scheme = document
-        .query_selector("pre#scheme")?
-        .ok_or("No scheme div !")?;
 
     let (opt, exp) = parse(expression).map_err(|err| err.to_string())?;
     ast.set_inner_html(&html_escape::encode_text(&format!("{:#?}", exp)));
