@@ -116,7 +116,7 @@ fn update() -> Result<(), JsValue> {
     ast.set_inner_html(&html_escape::encode_text(&format!("{:#?}", exp)));
     options.set_inner_html(&format!("{:#?}", opt));
 
-    let code = compile(&exp, &opt);
+    let code = compile(&exp, &opt).map_err(|err| err.to_string())?;
     scheme.set_inner_html(&html_escape::encode_text(&format!(
         "{}",
         code("[DEVICE PATH]")

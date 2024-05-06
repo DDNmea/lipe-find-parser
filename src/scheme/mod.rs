@@ -1,11 +1,12 @@
 #![allow(dead_code, unused_variables, deprecated)]
+mod error;
 
 use crate::ast::{
     Action, Comparison, Expression, FileType, FormatElement, FormatField, FormatSpecial, Operator,
     PermCheck, PositionalOption, Size, Test, TimeSpec,
 };
-use crate::Mode;
-use crate::SFlag;
+use crate::{Mode, SFlag};
+use error::CompileError;
 use std::rc::Rc;
 
 #[cfg(target_arch = "wasm32")]
@@ -166,8 +167,10 @@ impl SchemeManager {
     }
 }
 
+type CResult<O = ()> = Result<O, CompileError>;
+
 trait Scheme {
-    fn compile(&self, buffer: &mut String, init: &mut SchemeManager);
+    fn compile(&self, buffer: &mut String, init: &mut SchemeManager) -> CResult;
 }
 
 impl Expression {
@@ -281,8 +284,8 @@ fn literal(special: &FormatSpecial) -> String {
     }
 }
 
-fn placeholder(field: &FormatField) -> &'static str {
-    match field {
+fn placeholder(field: &FormatField) -> CResult<&'static str> {
+    Ok(match field {
         FormatField::Access
         | FormatField::Basename
         | FormatField::Change
@@ -328,11 +331,13 @@ fn placeholder(field: &FormatField) -> &'static str {
         | FormatField::SymbolicTarget
         | FormatField::PermissionsSymbolic
         | FormatField::TypeSymlink
-        | FormatField::SecurityContext => "x",
-    }
+        | FormatField::SecurityContext => {
+            return Err(CompileError::UnsupportedFormat(format!("{field:?}")))
+        }
+    })
 }
 
-fn snippet(field: &FormatField) -> Option<String> {
+fn snippet(field: &FormatField) -> CResult<Option<String>> {
     let snippet = match field {
         FormatField::Percent => "".to_string(),
         FormatField::Access => "atime".to_string(),
@@ -385,40 +390,47 @@ fn snippet(field: &FormatField) -> Option<String> {
         | FormatField::SymbolicTarget
         | FormatField::PermissionsSymbolic
         | FormatField::TypeSymlink
-        | FormatField::SecurityContext => "".to_string(),
+        | FormatField::SecurityContext => {
+            return Err(CompileError::UnsupportedFormat(format!("{field:?}")))
+        }
     };
 
-    (!snippet.is_empty()).then(move || format!("({})", snippet))
+    Ok((!snippet.is_empty()).then(move || format!("({})", snippet)))
 }
 
 impl Scheme for Vec<FormatElement> {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
         let template = self
             .iter()
             .map(|el| match el {
-                FormatElement::Literal(s) => s.clone(),
-                FormatElement::Field(f) => placeholder(f).to_string(),
-                FormatElement::Special(v) => literal(v),
+                FormatElement::Literal(s) => Ok(s.clone()),
+                FormatElement::Field(f) => placeholder(f).map(|s| s.to_string()),
+                FormatElement::Special(v) => Ok(literal(v)),
             })
-            .collect::<Vec<String>>()
+            .collect::<CResult<Vec<String>>>()?
             .join("");
 
         let items = self
             .iter()
             .filter_map(|el| match el {
                 FormatElement::Literal(s) => None,
-                FormatElement::Field(f) => snippet(f),
+                FormatElement::Field(f) => snippet(f).unwrap_or_else(|e| {
+                    log::error!("{e}");
+                    None
+                }),
                 FormatElement::Special(v) => None,
             })
             .collect::<Vec<String>>()
             .join(" ");
 
         buffer.push_str(&format!("(format #f \"{template}\" {items})"));
+
+        Ok(())
     }
 }
 
 impl Scheme for Test {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
         match self {
             Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
             Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
@@ -457,45 +469,47 @@ impl Scheme for Test {
             | Test::Samefile(_) // LiPE support
             | Test::User(_) // exfind - we need to figure out the remote uid
 
-            => {
-                log::error!("You have used a test that is not supported by this program.");
-            }
+            => return Err(CompileError::UnsupportedTest(format!("{self:?}")))
         }
+
+        Ok(())
     }
 }
 
 impl Scheme for Operator {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
         match self {
             // This is technically an error but the List seems to be treated as an And in the
             // original lipe wrapper so that is what we are doing for now.
             Operator::And(lhs, rhs) | Operator::List(lhs, rhs) => {
                 buffer.push_str("(and ");
-                lhs.compile(buffer, ctx);
+                lhs.compile(buffer, ctx)?;
                 buffer.push_str(" ");
-                rhs.compile(buffer, ctx);
+                rhs.compile(buffer, ctx)?;
                 buffer.push_str(")");
             }
             Operator::Or(lhs, rhs) => {
                 buffer.push_str("(or ");
-                lhs.compile(buffer, ctx);
+                lhs.compile(buffer, ctx)?;
                 buffer.push_str(" ");
-                rhs.compile(buffer, ctx);
+                rhs.compile(buffer, ctx)?;
                 buffer.push_str(")");
             }
             Operator::Not(exp) => {
                 buffer.push_str("(not ");
-                exp.compile(buffer, ctx);
+                exp.compile(buffer, ctx)?;
                 buffer.push_str(")");
             }
             // We are not supposed to encounter explicit precendence in the AST
             Operator::Precedence(_) => unreachable!(),
         }
+
+        Ok(())
     }
 }
 
 impl Scheme for Action {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
         match self {
             Action::DefaultPrint => buffer.push_str("(print-relative-path)"),
             Action::Print => {
@@ -521,39 +535,44 @@ impl Scheme for Action {
             Action::PrintFormatted(elements) => {
                 let port = ctx.register_port("#f");
                 buffer.push_str(&format!("(%lf3:print:{port} "));
-                elements.compile(buffer, ctx);
+                elements.compile(buffer, ctx)?;
                 buffer.push_str(&format!(")"));
             }
 
             Action::FilePrintFormatted(dest, elements) => {
                 let port = ctx.register_file(dest, "#f");
                 buffer.push_str(&format!("(%lf3:print:{port} "));
-                elements.compile(buffer, ctx);
+                elements.compile(buffer, ctx)?;
                 buffer.push_str(&format!(")"));
             }
 
             Action::PrintFid => buffer.push_str("(print-file-fid)"),
-
             Action::Quit => buffer.push_str("(lipe-scan-break 0)"),
 
-            Action::Prune | Action::List | Action::FileList(_) => log::error!("Unsupported action"),
+            Action::Prune | Action::List | Action::FileList(_) => {
+                return Err(CompileError::UnsupportedAction(format!("{self:?}")));
+            }
         }
+
+        Ok(())
     }
 }
 
 impl Scheme for PositionalOption {
-    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) -> CResult {
         match self {
             #[cfg(debug_assertions)]
             _ => buffer.push_str("(UNIMPLEMENTED)"),
             #[cfg(not(debug_assertions))]
             _ => todo!(),
         }
+
+        Ok(())
     }
 }
 
 impl Scheme for Expression {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) {
+    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
         match self {
             Expression::Test(t) => t.compile(buffer, ctx),
             Expression::Action(a) => a.compile(buffer, ctx),
@@ -561,8 +580,6 @@ impl Scheme for Expression {
             Expression::Positional(p) => p.compile(buffer, ctx),
             Expression::Global(_) => unreachable!(),
         }
-
-        log::trace!("{:?} => {buffer}", self);
     }
 }
 
@@ -571,7 +588,7 @@ impl Scheme for Expression {
 pub fn compile<S: AsRef<str>>(
     exp: &Expression,
     options: &crate::RunOptions,
-) -> impl Fn(S) -> String {
+) -> Result<impl Fn(S) -> String, CompileError> {
     let mut buffer = String::new();
     let mut manager = SchemeManager::default();
 
@@ -581,16 +598,16 @@ pub fn compile<S: AsRef<str>>(
             Expression::Action(Action::DefaultPrint),
         )));
 
-        wrapper.compile(&mut buffer, &mut manager);
+        wrapper.compile(&mut buffer, &mut manager)?;
     } else {
-        exp.compile(&mut buffer, &mut manager);
+        exp.compile(&mut buffer, &mut manager)?;
     }
 
     let options = options
         .threads
         .and_then(|c| Some(c.to_string()))
         .unwrap_or(String::from("(lipe-getopt-thread-count)"));
-    move |mdt: S| {
+    Ok(move |mdt: S| {
         format!(
             "(use-modules (lipe) (lipe find))
 
@@ -611,5 +628,5 @@ pub fn compile<S: AsRef<str>>(
             options,
             manager.fini(),
         )
-    }
+    })
 }

@@ -27,8 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
     println!("Options: {:?}\nExpression: {:?}", options, exp);
 
-    let code = compile(&exp, &options);
-    println!("Scheme: {}", code("</path/to/device>"));
+    match compile(&exp, &options) {
+        Ok(code) => println!("Scheme: {}", code("</path/to/device>")),
+        Err(e) => eprintln!("{e}"),
+    }
 
     Ok(())
 }

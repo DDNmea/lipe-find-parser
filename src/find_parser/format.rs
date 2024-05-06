@@ -37,7 +37,7 @@ impl Parseable for FormatField {
                 alt((
                     literal("%").value(FormatField::Percent),
                     literal("a").value(FormatField::Access),
-                    literal("d").value(FormatField::DiskSizeBlocks),
+                    literal("b").value(FormatField::DiskSizeBlocks),
                     literal("c").value(FormatField::Change),
                     literal("d").value(FormatField::Depth),
                     literal("D").value(FormatField::DeviceNumber),
