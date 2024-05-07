@@ -281,11 +281,25 @@ pub enum Operator {
     List(Expression, Expression),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Expression {
     Operator(Rc<Operator>),
     Test(Test),
     Action(Action),
     Global(GlobalOption),
     Positional(PositionalOption),
+}
+
+impl std::fmt::Debug for Expression {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Expression::Operator(o) => formatter.write_str(&format!("{o:#?}")),
+            Expression::Test(t) => formatter.write_str(&format!("Test({t:?})")),
+            Expression::Action(a) => formatter.write_str(&format!("Action({a:?})")),
+            Expression::Global(a) => formatter.write_str(&format!("Global({a:?})")),
+            Expression::Positional(a) => formatter.write_str(&format!("Positional({a:?})")),
+        }?;
+
+        Ok(())
+    }
 }
