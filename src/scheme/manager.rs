@@ -14,10 +14,20 @@ pub struct SchemeManager {
     var_index: usize,
     vars: Vec<String>,
 
+    /// The default output port. Defaults to None when not initialized.
     default_port: Option<OpenPort>,
+
+    /// List of opened files with their associated ports
     files: HashMap<String, OpenPort>,
+
+    /// Registry of defined printers. The keys contain the port used along with the termination - a
+    /// string to append to each printed content.
     printers: HashMap<(OpenPort, String), usize>,
-    matches: HashMap<String, usize>,
+
+    /// String matches. The map key contains the string to match and the case-insensitiveness (true
+    /// => case insensitive). The integer value is the reference of the match function assigned if
+    /// the pattern was previously encountered.
+    matches: HashMap<(String, bool), usize>,
 }
 
 impl Default for SchemeManager {
@@ -124,40 +134,40 @@ impl SchemeManager {
         self.files.get(&filename).unwrap().clone()
     }
 
-    /// This method will record a string matching operation and create a function for it in the
-    /// initialization of the program. If the given string is detected to be a patter, the fnmatch
-    /// function will be used to compare the strings, else the streq function will be used.
-    pub fn register_strcmp<S: AsRef<str>>(&mut self, cmp: S) -> usize {
-        let matcher = if is_pattern(cmp.as_ref()) {
-            "fnmatch"
-        } else {
-            "streq"
+    /// Internal function used by get_matcher
+    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> usize {
+        let matcher = match (is_pattern(pattern), insensitive) {
+            (true, true) => "fnmatch-ci",
+            (false, true) => "streq-ci",
+            (true, false) => "fnmatch",
+            (false, false) => "streq",
         };
 
-        self.register_str_match(matcher, cmp.as_ref())
-    }
+        if let Some(existing_id) = self.matches.get(&(pattern.to_string(), insensitive)) {
+            return *existing_id;
+        }
 
-    /// This method operates the same way as the above for case insensitive matches, using either
-    /// fnmatch-ci or streq-ci
-    pub fn register_ci_strcmp<S: AsRef<str>>(&mut self, cmp: S) -> usize {
-        let matcher = is_pattern(cmp.as_ref())
-            .then(|| "fnmatch-ci")
-            .unwrap_or("streq-ci");
-
-        self.register_str_match(matcher, cmp.as_ref())
-    }
-
-    /// Internal function used by register_*strcmp
-    fn register_str_match(&mut self, matcher: &str, string: &str) -> usize {
         self.vars.push(format!(
-            "(%lf3:match:{} (lambda (%lf3:str:{}) ({matcher}? \"{string}\" %lf3:str:{})))",
+            "(%lf3:match:{} (lambda (%lf3:str:{}) ({matcher}? \"{pattern}\" %lf3:str:{})))",
             self.var_index + 1,
             self.var_index,
             self.var_index
         ));
 
         self.var_index += 2;
+        self.matches
+            .insert((pattern.to_string(), insensitive), self.var_index - 1);
         return self.var_index - 1;
+    }
+
+    /// This method will record a string matching operation and create a function for it in the
+    /// initialization of the program. If the given string is detected to be a patter, the fnmatch
+    /// function will be used to compare the strings, else the streq function will be used.
+    pub fn get_matcher(&mut self, pattern: &str, insensitive: bool) -> String {
+        format!(
+            "%lf3:match:{}",
+            self.register_str_match(pattern, insensitive)
+        )
     }
 
     pub fn vars(&self) -> String {
