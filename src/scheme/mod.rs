@@ -87,14 +87,6 @@ fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpe
 }
 
 static S_IFMT: SFlag = SFlag::S_IFMT;
-fn compile_type_comp(buffer: &mut String, filetype: &FileType) {
-    buffer.push_str(&format!(
-        "(= (logand (mode) {}) {})",
-        S_IFMT.bits(),
-        filetype.octal().bits()
-    ))
-}
-
 fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
     let comps: Vec<String> = filetypes
         .iter()
