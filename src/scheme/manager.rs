@@ -1,27 +1,39 @@
 use std::collections::HashMap;
 
+/// A convenience struct to store output port information
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 struct OpenPort {
+    /// The id associated with the port
     port: usize,
+
+    /// The id of the defined mutex gatekeeping port access
     mutex: usize,
 }
 
 /// Collection of methods the code generation uses to keep track of IDs and initialization
 pub trait SchemeManager {
+    /// Outputs a scheme variable name for a stdout printer
+    ///
+    /// The initialization will be recorded and present in the output of [SchemeManager::definitions]
     fn get_printer(&mut self, terminator: &str) -> String;
 
     fn get_file_printer(&mut self, filename: &str, terminator: &str) -> String;
 
     fn get_matcher(&mut self, pattern: &str, insensitive: bool) -> String;
+
     fn definitions(&self) -> String;
+
     fn initialization(&self) -> String;
+
     fn terminate(&self) -> String;
 }
 
+/// Implementation of the scheme manager for a local (non-distributed) execution
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocalSchemeManager {
-    /// List of instructions to run before
+    /// List of instructions to run on the first step of the dynamic-wind
     init: Vec<String>,
+    /// List of instructions to run after the dynamic-wind
     fini: Vec<String>,
 
     var_index: usize,

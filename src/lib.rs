@@ -1,3 +1,4 @@
+/// AST definition of the expressions handled by LiPE
 pub mod ast;
 mod find_parser;
 mod permission_flags;

@@ -1,9 +1,10 @@
-#![allow(dead_code, unused_variables)]
-
 use crate::{Mode, SFlag};
 use std::rc::Rc;
 
+/// Size of the integer used for size storage
 type SizeType = u64;
+
+/// Size reference unit definitions
 #[derive(Debug, Clone, PartialEq)]
 pub enum Size {
     /// 1 byte. Called character in find.
@@ -48,6 +49,7 @@ impl Size {
     }
 }
 
+/// Time reference units
 #[derive(Debug, Clone, PartialEq)]
 pub enum TimeSpec {
     Second(SizeType),
@@ -67,6 +69,7 @@ impl TimeSpec {
     }
 }
 
+/// Generic comparison type
 #[derive(Debug, Clone, PartialEq)]
 pub enum Comparison<T> {
     GreaterThan(T),
@@ -110,11 +113,11 @@ impl FileType {
     }
 }
 
-/// Permission parameter when testing file modes. We wrap around [nix::sys::stat::Mode] for the
-/// ease of use and convenient display parameters.
+/// Permission parameter when testing file modes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Permission(pub Mode);
 
+/// Type of permission checking
 #[derive(Debug, Clone, PartialEq)]
 pub enum PermCheck {
     AtLeast(Permission),
@@ -122,71 +125,127 @@ pub enum PermCheck {
     Equal(Permission),
 }
 
+/// Special characters supported by format strings
+///
+/// A `\` character followed by any other character is treated as an ordinary character, so they both are printed.
 #[derive(Clone, PartialEq, Debug)]
 pub enum FormatSpecial {
-    // A `\' character followed by any other character is treated as an ordinary character, so they both are printed.
-    Alarm,          // \a Alarm bell.
-    Backspace,      // \b Backspace.
-    Clear,          // \c Stop printing from this format immediately and flush the output.
-    Form,           // \f Form feed.
-    Newline,        // \n Newline.
-    CarriageReturn, // \r Carriage return.
-    TabHorizontal,  // \t Horizontal tab.
-    TabVertical,    // \v Vertical tab.
-    Null,           // \0 ASCII NUL.
-    Backslash,      // \\ A literal backslash (`\').
-    Ascii(u16),     // \NNN The character whose ASCII code is NNN (octal).
+    /// `\a` Alarm bell.
+    Alarm,
+    /// `\b` Backspace.
+    Backspace,
+    /// `\c` Stop printing from this format immediately and flush the output.
+    Clear,
+    /// `\f` Form feed.
+    Form,
+    /// `\n` Newline.
+    Newline,
+    /// `\r` Carriage return.
+    CarriageReturn,
+    /// `\t` Horizontal tab.
+    TabHorizontal,
+    /// `\v` Vertical tab.
+    TabVertical,
+    /// `\0` ASCII NUL.
+    Null,
+    /// `\\` A literal backslash (`\').
+    Backslash,
+    /// `\NNN` The character whose ASCII code is NNN (octal).
+    Ascii(u16),
 }
 
+/// Format fields supported by format strings
 #[derive(Clone, PartialEq, Debug)]
 pub enum FormatField {
-    Percent,                  // %% A literal percent sign.
-    Access, // %a File's last access time in the format returned by the C `ctime' function.
-    AccessFormatted(char), // %Ak File's last access time in the format specified by k,
-    DiskSizeBlocks, // %b The amount of disk space used for this file in 512-byte blocks.
-    Change, // %c File's last status change time in the format returned by the C `ctime' function.
-    ChangeFormatted(char), // %Ck File's last status change time in the format specified by k, which is the same as for %A.
-    Depth, // %d File's depth in the directory tree; 0 means the file is a starting-point.
-    DeviceNumber, // %D The device number on which the file exists (the st_dev field of struct stat), in decimal.
-    Basename,     // %f File's name with any leading directories removed (only the last element).
-    FsType,       // %F Type of the filesystem the file is on; this value can be used for -fstype.
-    Group,        // %g File's group name, or numeric group ID if the group has no name.
-    GroupId,      // %G File's numeric group ID.
-    Parents, // %h Leading directories of file's name (all but the last element). If the file is in the current directory the %h specifier expands to ".".
-    StartingPoint, // %H Starting-point under which file was found.
-    InodeDecimal, // %i File's inode number (in decimal).
-    DiskSizeKilos, // %k The amount of disk space used for this file in 1K blocks
-    SymbolicTarget, // %l Object of symbolic link (empty string if file is not a symbolic link).
-    PermissionsOctal, // %m File's permission bits (in octal). This option uses the `traditional' numbers which most Unix implementations use, but if your particular implementation uses an unusual ordering of octal permissions bits, you will see a difference between the actual value of the file's mode and the output of %m. Normally you will want to have a leading zero on this number, and to do this, you should use the # flag (as in, for example, `%#m').
-    PermissionsSymbolic, // %M File's permissions (in symbolic form, as for ls). This directive is supported in findutils 4.2.5 and later.
-    Hardlinks,           // %n Number of hard links to file.
-    Name,                // %p File's name.
-    NameWithoutStartingPoint, // %P File's name with the name of the starting-point under which it was found removed.
-    DiskSizeBytes,            // %s File's size in bytes.
-    Sparseness, // %S File's sparseness. This is calculated as (BLOCK‐ SIZE*st_blocks / st_size). The exact value you will get for an ordinary file of a certain length is system-depen‐ dent. However, normally sparse files will have values less than 1.0, and files which use indirect blocks may have a value which is greater than 1.0. The value used for BLOCKSIZE is system-dependent, but is usually 512 bytes. If the file size is zero, the value printed is undefined. On systems which lack support for st_blocks, a file's sparseness is assumed to be 1.0.
-    Modify, // %t File's last modification time in the format returned by the C `ctime' function.
-    ModifyFormatted(char), // %Tk File's last modification time in the format specified by k, which is the same as for %A.
-    User,                  // %u File's user name, or numeric user ID if the user has no name.
-    UserId,                // %U File's numeric user ID.
-    Type,                  // %y File's type (like in ls -l), U=unknown type (shouldn't happen)
-    TypeSymlink,           // %Y File's type (like %y), plus follow symlinks: L=loop, N=nonexistent
-    SecurityContext,       // %Z (SELinux only) file's security context.
-    FileId,                // %{fid}, file FID
-    ProjectId,             // %{projid} numerical project ID
-    MirrorCount,           // %{mirror-count}, FLR mirror count
-    StripeCount,           // %{stripe-count}, stripe count of last instantiated component
-    StripeSize,            // %{stripe-size}, stripe size of last instantiated component
-    XAttr(String),         // %{xattr:NAME} contents of NAME xattr as a string
+    /// `%%` A literal percent sign.
+    Percent,
+    /// `%a` File's last access time in the format returned by the C `ctime' function.
+    Access,
+    /// `%Ak` File's last access time in the format specified by k,
+    AccessFormatted(char),
+    /// `%b` The amount of disk space used for this file in 512-byte blocks.
+    DiskSizeBlocks,
+    /// `%c` File's last status change time in the format returned by the C `ctime' function.
+    Change,
+    /// `%Ck` File's last status change time in the format specified by k, which is the same as for `%A`.
+    ChangeFormatted(char),
+    /// `%d` File's depth in the directory tree; 0 means the file is a starting-point.
+    Depth,
+    /// `%D` The device number on which the file exists (the `st_dev` field of `struct stat`), in decimal.
+    DeviceNumber,
+    /// `%f` File's name with any leading directories removed (only the last element).
+    Basename,
+    /// `%F` Type of the filesystem the file is on; this value can be used for `-fstype`.
+    FsType,
+    /// `%g` File's group name, or numeric group ID if the group has no name.
+    Group,
+    /// `%G` File's numeric group ID.
+    GroupId,
+    /// `%h` Leading directories of file's name (all but the last element). If the file is in the current directory the `%h` specifier expands to ".".
+    Parents,
+    /// `%H` Starting-point under which file was found.
+    StartingPoint,
+    /// `%i` File's inode number (in decimal).
+    InodeDecimal,
+    /// `%k` The amount of disk space used for this file in 1K blocks
+    DiskSizeKilos,
+    /// `%l` Object of symbolic link (empty string if file is not a symbolic link).
+    SymbolicTarget,
+    /// `%m` File's permission bits (in octal). This option uses the `traditional' numbers which most Unix implementations use, but if your particular implementation uses an unusual ordering of octal permissions bits, you will see a difference between the actual value of the file's mode and the output of `%m`. Normally you will want to have a leading zero on this number, and to do this, you should use the # flag (as in, for example, `%#m').
+    PermissionsOctal,
+    /// `%M` File's permissions (in symbolic form, as for ls). This directive is supported in findutils 4.2.5 and later.
+    PermissionsSymbolic,
+    /// `%n` Number of hard links to file.
+    Hardlinks,
+    /// `%p` File's name.
+    Name,
+    /// `%P` File's name with the name of the starting-point under which it was found removed.
+    NameWithoutStartingPoint,
+    /// `%s` File's size in bytes.
+    DiskSizeBytes,
+    /// `%S` File's sparseness. This is calculated as `(BLOCK‐SIZE*st_blocks / st_size)`. The exact value you will get for an ordinary file of a certain length is system-depen‐ dent. However, normally sparse files will have values less than 1.0, and files which use indirect blocks may have a value which is greater than 1.0. The value used for BLOCKSIZE is system-dependent, but is usually 512 bytes. If the file size is zero, the value printed is undefined. On systems which lack support for st_blocks, a file's sparseness is assumed to be 1.0.
+    Sparseness,
+    /// `%t` File's last modification time in the format returned by the C `ctime` function.
+    Modify,
+    /// `%Tk` File's last modification time in the format specified by k, which is the same as for `%A`.
+    ModifyFormatted(char),
+    /// `%u` File's user name, or numeric user ID if the user has no name.
+    User,
+    /// `%U` File's numeric user ID.
+    UserId,
+    /// `%y` File's type (like in ls -l), U=unknown type (shouldn't happen)
+    Type,
+    /// `%Y` File's type (like `%y`), plus follow symlinks: L=loop, N=nonexistent
+    TypeSymlink,
+    /// `%Z` (SELinux only) file's security context.
+    SecurityContext,
+    /// `%{fid}` file FID
+    FileId,
+    /// `%{projid}` numerical project ID
+    ProjectId,
+    /// `%{mirror-count}` FLR mirror count
+    MirrorCount,
+    /// `%{stripe-count}` stripe count of last instantiated component
+    StripeCount,
+    /// `%{stripe-size}` stripe size of last instantiated component
+    StripeSize,
+    /// `%{xattr:NAME}` contents of NAME xattr as a string
+    XAttr(String),
 }
 
+/// Abstraction over the possible elements making up a format string
 #[derive(PartialEq, Debug, Clone)]
 pub enum FormatElement {
+    /// A regular string
     Literal(String),
+    /// A format field
     Field(FormatField),
+    /// A special character
     Special(FormatSpecial),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Tests handled by LiPE when matching files to run [Action]s on
 pub enum Test {
     AccessTime(Comparison<TimeSpec>),
     ChangeTime(Comparison<TimeSpec>),
@@ -227,6 +286,7 @@ pub enum Test {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Actions supported by the program
 pub enum Action {
     //Exec(Vec<String>),
     //ExecOnAll(Vec<String>)
@@ -255,8 +315,10 @@ pub enum Action {
     DefaultPrint,
 }
 
-/// Options affecting the behaviour of the scan. They are expected to be present before any other
-/// options on the command line but will only generate a warning if improperly declared.
+/// Options affecting the behaviour of the scan
+///
+/// They are expected to be present before any other options on the command
+/// line but will only generate a warning if improperly declared.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GlobalOption {
     Depth,
@@ -272,6 +334,7 @@ pub enum PositionalOption {
     XDev,
 }
 
+/// Operators composing [Expression]s
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
     Precedence(Expression),
@@ -281,6 +344,7 @@ pub enum Operator {
     List(Expression, Expression),
 }
 
+/// Top level object of the AST
 #[derive(Clone, PartialEq)]
 pub enum Expression {
     Operator(Rc<Operator>),
