@@ -191,7 +191,7 @@ impl SchemeManager for LocalSchemeManager {
     }
 
     fn definitions(&self) -> String {
-        self.vars.join(" ")
+        self.vars.join("\n       ")
     }
 
     fn initialization(&self) -> String {
@@ -209,4 +209,37 @@ impl SchemeManager for LocalSchemeManager {
             self.fini.join(" ")
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Target {
+    Stdout(String),
+    File(String, String),
+}
+
+/// Implementation of the scheme manager for a distributed execution
+#[derive(Debug, Clone, PartialEq)]
+pub struct DistributedSchemeManager {
+    /// List of instructions to run on the first step of the dynamic-wind
+    init: Vec<String>,
+    /// List of instructions to run after the dynamic-wind
+    fini: Vec<String>,
+
+    var_index: usize,
+    vars: Vec<String>,
+
+    /// The only output port
+    ///
+    /// All the data will go through this port. Each frame contains a reference to the target
+    /// it is destined to, which the master process receives and dispatches accordingly.
+    output: OpenPort,
+
+    /// Registry of defined printers. The keys contain the port used along with the termination - a
+    /// string to append to each printed content.
+    printers: HashMap<Target, usize>,
+
+    /// String matches. The map key contains the string to match and the case-insensitiveness (true
+    /// => case insensitive). The integer value is the reference of the match function assigned if
+    /// the pattern was previously encountered.
+    matches: HashMap<(String, bool), usize>,
 }
