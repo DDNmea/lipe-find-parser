@@ -8,6 +8,7 @@ use crate::ast::{
 };
 use crate::{Mode, SFlag};
 use error::CompileError;
+use manager::LocalSchemeManager;
 use manager::SchemeManager;
 use std::rc::Rc;
 
@@ -37,7 +38,7 @@ macro_rules! format_cmp {
 type CResult<O = ()> = Result<O, CompileError>;
 
 trait Scheme {
-    fn compile(&self, buffer: &mut String, init: &mut SchemeManager) -> CResult;
+    fn compile(&self, buffer: &mut String, init: &mut dyn SchemeManager) -> CResult;
 }
 
 impl Expression {
@@ -258,7 +259,7 @@ fn snippet(field: &FormatField) -> CResult<Option<String>> {
 }
 
 impl Scheme for Vec<FormatElement> {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         let template = self
             .iter()
             .map(|el| match el {
@@ -289,7 +290,7 @@ impl Scheme for Vec<FormatElement> {
 }
 
 impl Scheme for Test {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         match self {
             Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
             Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
@@ -336,7 +337,7 @@ impl Scheme for Test {
 }
 
 impl Scheme for Operator {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         match self {
             // This is technically an error but the List seems to be treated as an And in the
             // original lipe wrapper so that is what we are doing for now.
@@ -368,16 +369,16 @@ impl Scheme for Operator {
 }
 
 impl Scheme for Action {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         match self {
             Action::DefaultPrint => buffer.push_str("(print-relative-path)"),
             Action::Print => {
-                let printer = ctx.get_printer(String::from("#\\x0a"));
+                let printer = ctx.get_printer("#\\x0a");
                 buffer.push_str(&format!("(call-with-relative-path {printer})"));
             }
 
             Action::PrintNull => {
-                let printer = ctx.get_printer(String::from("#\\x00"));
+                let printer = ctx.get_printer("#\\x00");
                 buffer.push_str(&format!("(call-with-relative-path {printer})"));
             }
 
@@ -418,7 +419,7 @@ impl Scheme for Action {
 }
 
 impl Scheme for PositionalOption {
-    fn compile(&self, buffer: &mut String, _: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, _: &mut dyn SchemeManager) -> CResult {
         match self {
             #[cfg(debug_assertions)]
             _ => buffer.push_str("(UNIMPLEMENTED)"),
@@ -431,7 +432,7 @@ impl Scheme for PositionalOption {
 }
 
 impl Scheme for Expression {
-    fn compile(&self, buffer: &mut String, ctx: &mut SchemeManager) -> CResult {
+    fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         match self {
             Expression::Test(t) => t.compile(buffer, ctx),
             Expression::Action(a) => a.compile(buffer, ctx),
@@ -449,7 +450,7 @@ pub fn compile<S: AsRef<str>>(
     options: &crate::RunOptions,
 ) -> Result<impl Fn(S) -> String, CompileError> {
     let mut buffer = String::new();
-    let mut manager = SchemeManager::default();
+    let mut manager = LocalSchemeManager::default();
 
     if !exp.action() {
         let wrapper = Expression::Operator(Rc::new(Operator::And(
@@ -480,12 +481,12 @@ pub fn compile<S: AsRef<str>>(
         (lipe-getopt-required-attrs)
         {}))
     (lambda () {})))",
-            manager.vars(),
-            manager.init(),
+            manager.definitions(),
+            manager.initialization(),
             mdt.as_ref(),
             buffer,
             options,
-            manager.fini(),
+            manager.terminate(),
         )
     })
 }
