@@ -260,11 +260,9 @@ impl DistributedSchemeManager {
             self.printers.insert(target.clone(), self.var_index);
 
             self.vars.push(format!(
-                "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
+                "(%lf3:print:{} (lambda (line) (%lf3:frame:2 line #\\x{:02x})))",
                 self.var_index,
-                self.output.port,
-                self.output.mutex,
-                format!("#\\xf1\\x1d\\x{:02x}", self.var_index + 1),
+                self.var_index + 1,
             ));
 
             self.var_index += 1;
@@ -354,6 +352,7 @@ impl Default for DistributedSchemeManager {
             vars: vec![
                 String::from("(%lf3:port:0 (current-output-port))"),
                 String::from("(%lf3:mutex:1 (make-mutex))"),
+                String::from("(%lf3:frame:2 (lambda (s d) (with-mutex %lf3:mutex:1 (display s %lf3:port:0) (display (string #\\x1e d) %lf3:port:0))))"),
             ],
 
             output: OpenPort { port: 0, mutex: 1 },

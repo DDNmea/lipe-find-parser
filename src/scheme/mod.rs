@@ -471,7 +471,7 @@ pub fn compile<S: AsRef<str>>(
         .unwrap_or(String::from("(lipe-getopt-thread-count)"));
     Ok(move |mdt: S| {
         format!(
-            "(use-modules (lipe) (lipe find))
+            "(use-modules (lipe) (lipe find) (ice-9 threads))
 
 (let* ({})
   (dynamic-wind
