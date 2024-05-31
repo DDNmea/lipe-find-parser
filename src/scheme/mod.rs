@@ -8,8 +8,8 @@ use crate::ast::{
 };
 use crate::{Mode, SFlag};
 use error::CompileError;
-use manager::LocalSchemeManager;
 use manager::SchemeManager;
+use manager::{DistributedSchemeManager, LocalSchemeManager};
 use std::rc::Rc;
 
 #[cfg(target_arch = "wasm32")]
@@ -450,7 +450,7 @@ pub fn compile<S: AsRef<str>>(
     options: &crate::RunOptions,
 ) -> Result<impl Fn(S) -> String, CompileError> {
     let mut buffer = String::new();
-    let mut manager = LocalSchemeManager::default();
+    let mut manager = DistributedSchemeManager::default();
 
     if !exp.action() {
         let wrapper = Expression::Operator(Rc::new(Operator::And(
@@ -462,6 +462,8 @@ pub fn compile<S: AsRef<str>>(
     } else {
         exp.compile(&mut buffer, &mut manager)?;
     }
+
+    log::info!("Printers: {:?}", manager.printer_map());
 
     let options = options
         .threads

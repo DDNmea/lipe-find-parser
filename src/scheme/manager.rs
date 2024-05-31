@@ -212,9 +212,19 @@ impl SchemeManager for LocalSchemeManager {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Target {
+pub enum Target {
     Stdout(String),
     File(String, String),
+}
+
+impl Target {
+    fn terminator(&self) -> String {
+        match self {
+            Target::Stdout(term) => term,
+            Target::File(_, term) => term,
+        }
+        .clone()
+    }
 }
 
 /// Implementation of the scheme manager for a distributed execution
@@ -242,4 +252,113 @@ pub struct DistributedSchemeManager {
     /// => case insensitive). The integer value is the reference of the match function assigned if
     /// the pattern was previously encountered.
     matches: HashMap<(String, bool), usize>,
+}
+
+impl DistributedSchemeManager {
+    fn register_printer(&mut self, target: Target) -> usize {
+        if !self.printers.contains_key(&target) {
+            self.printers.insert(target.clone(), self.var_index);
+
+            self.vars.push(format!(
+                "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
+                self.var_index,
+                self.output.port,
+                self.output.mutex,
+                format!("#\\xf1\\x1d\\x{:02x}", self.var_index + 1),
+            ));
+
+            self.var_index += 1;
+        }
+
+        self.printers.get(&target).unwrap().clone()
+    }
+
+    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> usize {
+        let matcher = match (is_pattern(pattern), insensitive) {
+            (true, true) => "fnmatch-ci",
+            (false, true) => "streq-ci",
+            (true, false) => "fnmatch",
+            (false, false) => "streq",
+        };
+
+        if let Some(existing_id) = self.matches.get(&(pattern.to_string(), insensitive)) {
+            return *existing_id;
+        }
+
+        self.vars.push(format!(
+            "(%lf3:match:{} (lambda (%lf3:str:{}) ({matcher}? \"{pattern}\" %lf3:str:{})))",
+            self.var_index + 1,
+            self.var_index,
+            self.var_index
+        ));
+
+        self.var_index += 2;
+        self.matches
+            .insert((pattern.to_string(), insensitive), self.var_index - 1);
+        return self.var_index - 1;
+    }
+
+    pub fn printer_map(&self) -> HashMap<usize, Target> {
+        self.printers.iter().map(|(k, v)| (*v, k.clone())).collect()
+    }
+}
+
+impl SchemeManager for DistributedSchemeManager {
+    fn get_printer(&mut self, terminator: &str) -> String {
+        let index = self.register_printer(Target::Stdout(terminator.to_string()));
+
+        format!("%lf3:print:{index}")
+    }
+
+    fn get_file_printer(&mut self, filename: &str, terminator: &str) -> String {
+        let index =
+            self.register_printer(Target::File(filename.to_string(), terminator.to_string()));
+
+        format!("%lf3:print:{index}")
+    }
+
+    fn get_matcher(&mut self, pattern: &str, insensitive: bool) -> String {
+        format!(
+            "%lf3:match:{}",
+            self.register_str_match(pattern, insensitive)
+        )
+    }
+
+    fn definitions(&self) -> String {
+        self.vars.join("\n       ")
+    }
+
+    fn initialization(&self) -> String {
+        if self.init.is_empty() {
+            String::from("#t")
+        } else {
+            self.init.join(" ")
+        }
+    }
+
+    fn terminate(&self) -> String {
+        if self.fini.is_empty() {
+            String::from("#t")
+        } else {
+            self.fini.join(" ")
+        }
+    }
+}
+
+impl Default for DistributedSchemeManager {
+    fn default() -> Self {
+        DistributedSchemeManager {
+            init: vec![],
+            fini: vec![],
+            var_index: 2usize,
+            vars: vec![
+                String::from("(%lf3:port:0 (current-output-port))"),
+                String::from("(%lf3:mutex:1 (make-mutex))"),
+            ],
+
+            output: OpenPort { port: 0, mutex: 1 },
+            printers: HashMap::new(),
+            matches: HashMap::new(),
+        }
+    }
 }
