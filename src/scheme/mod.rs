@@ -41,22 +41,6 @@ trait Scheme {
     fn compile(&self, buffer: &mut String, init: &mut dyn SchemeManager) -> CResult;
 }
 
-impl Expression {
-    fn action(&self) -> bool {
-        match self {
-            Expression::Action(_) => true,
-
-            Expression::Operator(op) => match op.as_ref() {
-                Operator::Precedence(e) | Operator::Not(e) => e.action(),
-                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
-                    e1.action() || e2.action()
-                }
-            },
-            _ => false,
-        }
-    }
-}
-
 fn size_matching(size: &Size) -> String {
     match size {
         Size::Byte(_) => String::from("size"),

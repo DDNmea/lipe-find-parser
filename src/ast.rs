@@ -367,3 +367,53 @@ impl std::fmt::Debug for Expression {
         Ok(())
     }
 }
+
+impl Expression {
+    /// Returns true if this expression contains an action at any part of its structure
+    pub fn action(&self) -> bool {
+        match self {
+            Expression::Action(_) => true,
+
+            Expression::Operator(op) => match op.as_ref() {
+                Operator::Precedence(e) | Operator::Not(e) => e.action(),
+                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
+                    e1.action() || e2.action()
+                }
+            },
+            _ => false,
+        }
+    }
+
+    /// Checks the expression and returns true if it requires special handling by outputting to
+    /// files or outputting lines that do not terminate by a newline character
+    pub fn complex_frames(&self) -> bool {
+        match self {
+            // Check the actions of the expression
+            Expression::Action(act) => match act {
+                Action::PrintNull
+                | Action::FileList(_)
+                | Action::FilePrint(_)
+                | Action::FilePrintFormatted(_, _)
+                | Action::FilePrintNull(_) => true,
+                // Returns true if a printf does not end with \n
+                Action::PrintFormatted(format) => {
+                    format.last().is_some_and(|el: &FormatElement| {
+                        !matches!(el, FormatElement::Special(FormatSpecial::Newline))
+                    })
+                }
+                _ => false,
+            },
+
+            // Descend recursively
+            Expression::Operator(op) => match op.as_ref() {
+                Operator::Precedence(e) | Operator::Not(e) => e.complex_frames(),
+                Operator::And(e1, e2) | Operator::Or(e1, e2) | Operator::List(e1, e2) => {
+                    e1.complex_frames() || e2.complex_frames()
+                }
+            },
+
+            // Any other component is safe
+            _ => false,
+        }
+    }
+}
