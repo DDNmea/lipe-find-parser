@@ -458,6 +458,8 @@ pub fn compile<S: AsRef<str>>(
     // Compile the expression
     target.compile(&mut buffer, &mut *manager)?;
 
+    log::debug!("Frame indexes: {:?}", manager.printer_map());
+
     // Just the threads, for now
     let options = options
         .threads
@@ -466,24 +468,23 @@ pub fn compile<S: AsRef<str>>(
 
     // Wrap all of that processed output into a closure and return it
     Ok(move |mdt: S| {
+        let mdt = mdt.as_ref();
         format!(
-            "(use-modules (lipe) (lipe find) (ice-9 threads))
+            "(use-modules (lipe) (lipe find){})
 
 (let* ({})
   (dynamic-wind
     (lambda () {})
     (lambda () (lipe-scan
-        \"{}\"
+        \"{mdt}\"
         (lipe-getopt-client-mount-path)
-        (lambda () {})
+        (lambda () {buffer})
         (lipe-getopt-required-attrs)
-        {}))
+        {options}))
     (lambda () {})))",
+            manager.modules(),
             manager.definitions(),
             manager.initialization(),
-            mdt.as_ref(),
-            buffer,
-            options,
             manager.terminate(),
         )
     })

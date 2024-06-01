@@ -26,6 +26,10 @@ pub trait SchemeManager {
     fn initialization(&self) -> String;
 
     fn terminate(&self) -> String;
+
+    fn printer_map(&self) -> Option<HashMap<usize, Target>>;
+
+    fn modules(&self) -> &'static str;
 }
 
 /// Implementation of the scheme manager for a local (non-distributed) execution
@@ -209,22 +213,20 @@ impl SchemeManager for LocalSchemeManager {
             self.fini.join(" ")
         }
     }
+
+    fn printer_map(&self) -> Option<HashMap<usize, Target>> {
+        None
+    }
+
+    fn modules(&self) -> &'static str {
+        ""
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Target {
     Stdout(String),
     File(String, String),
-}
-
-impl Target {
-    fn terminator(&self) -> String {
-        match self {
-            Target::Stdout(term) => term,
-            Target::File(_, term) => term,
-        }
-        .clone()
-    }
 }
 
 /// Implementation of the scheme manager for a distributed execution
@@ -299,10 +301,6 @@ impl DistributedSchemeManager {
             .insert((pattern.to_string(), insensitive), self.var_index - 1);
         return self.var_index - 1;
     }
-
-    pub fn printer_map(&self) -> HashMap<usize, Target> {
-        self.printers.iter().map(|(k, v)| (*v, k.clone())).collect()
-    }
 }
 
 impl SchemeManager for DistributedSchemeManager {
@@ -344,6 +342,14 @@ impl SchemeManager for DistributedSchemeManager {
         } else {
             self.fini.join(" ")
         }
+    }
+
+    fn printer_map(&self) -> Option<HashMap<usize, Target>> {
+        Some(self.printers.iter().map(|(k, v)| (*v, k.clone())).collect())
+    }
+
+    fn modules(&self) -> &'static str {
+        " (ice-9 threads)"
     }
 }
 
