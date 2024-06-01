@@ -228,6 +228,10 @@ impl Target {
 }
 
 /// Implementation of the scheme manager for a distributed execution
+///
+/// This manager will only open one output port and one mutex. All communications will go through
+/// that port and be terminated by a specific byte combination that the parent process uses to
+/// delimit the frame and dispatch it to the right destination
 #[derive(Debug, Clone, PartialEq)]
 pub struct DistributedSchemeManager {
     /// List of instructions to run on the first step of the dynamic-wind

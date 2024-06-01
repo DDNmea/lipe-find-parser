@@ -433,26 +433,38 @@ pub fn compile<S: AsRef<str>>(
     exp: &Expression,
     options: &crate::RunOptions,
 ) -> Result<impl Fn(S) -> String, CompileError> {
+    // This will contain the scheme code for the expression
     let mut buffer = String::new();
-    let mut manager = DistributedSchemeManager::default();
 
-    if !exp.action() {
-        let wrapper = Expression::Operator(Rc::new(Operator::And(
+    // We determine here if the expression needs special handling because of its IO pattern
+    // This affects what helper struct to use during compilation
+    let mut manager: Box<dyn SchemeManager> = if exp.complex_frames() {
+        Box::new(DistributedSchemeManager::default())
+    } else {
+        Box::new(LocalSchemeManager::default())
+    };
+
+    // If the expression does not contain an explicit action, the user assumes to print and we wrap
+    // everything using And(expression, Action::Print)
+    let target = if !exp.action() {
+        Expression::Operator(Rc::new(Operator::And(
             exp.clone(),
             Expression::Action(Action::DefaultPrint),
-        )));
-
-        wrapper.compile(&mut buffer, &mut manager)?;
+        )))
     } else {
-        exp.compile(&mut buffer, &mut manager)?;
-    }
+        exp.clone()
+    };
 
-    log::info!("Printers: {:?}", manager.printer_map());
+    // Compile the expression
+    target.compile(&mut buffer, &mut *manager)?;
 
+    // Just the threads, for now
     let options = options
         .threads
         .and_then(|c| Some(c.to_string()))
         .unwrap_or(String::from("(lipe-getopt-thread-count)"));
+
+    // Wrap all of that processed output into a closure and return it
     Ok(move |mdt: S| {
         format!(
             "(use-modules (lipe) (lipe find) (ice-9 threads))
