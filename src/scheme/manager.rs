@@ -263,12 +263,11 @@ pub struct DistributedSchemeManager {
 impl DistributedSchemeManager {
     fn register_printer(&mut self, target: Target) -> usize {
         if !self.printers.contains_key(&target) {
-            self.printers.insert(target.clone(), self.var_index);
+            let index = self.var_index;
+            self.printers.insert(target.clone(), index);
 
             self.vars.push(format!(
-                "(%lf3:print:{} (lambda (line) (%lf3:frame:2 line #\\x{:02x})))",
-                self.var_index,
-                self.var_index + 1,
+                "(%lf3:print:{index} (lambda (line) (%lf3:frame:2 line #\\x{index:02x})))"
             ));
 
             self.var_index += 1;
