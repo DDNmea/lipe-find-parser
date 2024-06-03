@@ -6,7 +6,7 @@ mod scheme;
 
 pub use find_parser::parse;
 pub use permission_flags::{Mode, SFlag};
-pub use scheme::compile;
+pub use scheme::{compile, manager::Target};
 
 /// Convenience struct to collect the [ast::GlobalOption] passed on the command line.
 #[derive(Debug)]

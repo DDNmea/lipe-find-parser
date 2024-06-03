@@ -1,6 +1,6 @@
 #![allow(unused_variables, deprecated)]
 mod error;
-mod manager;
+pub mod manager;
 mod target_scheme;
 
 use crate::ast::{Action, Expression, Operator};
