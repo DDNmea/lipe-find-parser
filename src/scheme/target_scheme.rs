@@ -352,34 +352,34 @@ impl TargetScheme for Action {
         match self {
             Action::DefaultPrint => buffer.push_str("(print-relative-path)"),
             Action::Print => {
-                let printer = ctx.get_printer("#\\x0a");
+                let printer = ctx.get_printer(Some('\n'));
                 buffer.push_str(&format!("(call-with-relative-path {printer})"));
             }
 
             Action::PrintNull => {
-                let printer = ctx.get_printer("#\\x00");
+                let printer = ctx.get_printer(Some('\0'));
                 buffer.push_str(&format!("(call-with-relative-path {printer})"));
             }
 
             Action::FilePrint(dest) => {
-                let printer = ctx.get_file_printer(dest, "#\\x0a");
+                let printer = ctx.get_file_printer(dest, Some('\n'));
                 buffer.push_str(&format!("(call-with-relative-path {printer})"))
             }
 
             Action::FilePrintNull(dest) => {
-                let printer = ctx.get_file_printer(dest, "#\\x00");
+                let printer = ctx.get_file_printer(dest, Some('\0'));
                 buffer.push_str(&format!("(call-with-relative-path {printer})"))
             }
 
             Action::PrintFormatted(elements) => {
-                let printer = ctx.get_printer("#f");
+                let printer = ctx.get_printer(None);
                 buffer.push_str(&format!("({printer} "));
                 elements.compile(buffer, ctx)?;
                 buffer.push_str(&format!(")"));
             }
 
             Action::FilePrintFormatted(dest, elements) => {
-                let printer = ctx.get_file_printer(dest, "#f");
+                let printer = ctx.get_file_printer(dest, None);
                 buffer.push_str(&format!("({printer} "));
                 elements.compile(buffer, ctx)?;
                 buffer.push_str(&format!(")"));

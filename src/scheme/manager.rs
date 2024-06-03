@@ -15,9 +15,9 @@ pub trait SchemeManager {
     /// Outputs a scheme variable name for a stdout printer
     ///
     /// The initialization will be recorded and present in the output of [SchemeManager::definitions]
-    fn get_printer(&mut self, terminator: &str) -> String;
+    fn get_printer(&mut self, terminator: Option<char>) -> String;
 
-    fn get_file_printer(&mut self, filename: &str, terminator: &str) -> String;
+    fn get_file_printer(&mut self, filename: &str, terminator: Option<char>) -> String;
 
     fn get_matcher(&mut self, pattern: &str, insensitive: bool) -> String;
 
@@ -51,7 +51,7 @@ pub struct LocalSchemeManager {
 
     /// Registry of defined printers. The keys contain the port used along with the termination - a
     /// string to append to each printed content.
-    printers: HashMap<(OpenPort, String), u32>,
+    printers: HashMap<(OpenPort, Option<char>), u32>,
 
     /// String matches. The map key contains the string to match and the case-insensitiveness (true
     /// => case insensitive). The integer value is the reference of the match function assigned if
@@ -79,6 +79,13 @@ fn is_pattern(input: &str) -> bool {
     input.contains('?') | input.contains('*') | input.contains('[')
 }
 
+fn terminator_escape(terminator: Option<char>) -> String {
+    match terminator {
+        None => String::from("#f"),
+        Some(value) => format!("#\\x{:02x}", value as u8),
+    }
+}
+
 impl LocalSchemeManager {
     fn init_default_port(&mut self) -> OpenPort {
         if self.default_port.is_none() {
@@ -101,13 +108,16 @@ impl LocalSchemeManager {
         self.default_port.as_ref().unwrap().clone()
     }
 
-    fn register_printer(&mut self, port: OpenPort, terminator: String) -> u32 {
+    fn register_printer(&mut self, port: OpenPort, terminator: Option<char>) -> u32 {
         let key = (port.clone(), terminator.clone());
 
         if self.printers.get(&key).is_none() {
             self.vars.push(format!(
                 "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
-                self.var_index, port.port, port.mutex, terminator
+                self.var_index,
+                port.port,
+                port.mutex,
+                terminator_escape(terminator)
             ));
 
             self.printers.insert(key.clone(), self.var_index);
@@ -170,16 +180,16 @@ impl LocalSchemeManager {
 }
 
 impl SchemeManager for LocalSchemeManager {
-    fn get_printer(&mut self, terminator: &str) -> String {
+    fn get_printer(&mut self, terminator: Option<char>) -> String {
         let port = self.init_default_port();
-        let printer_index = self.register_printer(port, terminator.to_string());
+        let printer_index = self.register_printer(port, terminator);
 
         format!("%lf3:print:{printer_index}")
     }
 
-    fn get_file_printer(&mut self, filename: &str, terminator: &str) -> String {
+    fn get_file_printer(&mut self, filename: &str, terminator: Option<char>) -> String {
         let port = self.init_file_port(filename.to_string());
-        let printer_index = self.register_printer(port, terminator.to_string());
+        let printer_index = self.register_printer(port, terminator);
 
         format!("%lf3:print:{printer_index}")
     }
@@ -195,7 +205,7 @@ impl SchemeManager for LocalSchemeManager {
     }
 
     fn definitions(&self) -> String {
-        self.vars.join("\n       ")
+        self.vars.join(" ")
     }
 
     fn initialization(&self) -> String {
@@ -225,8 +235,8 @@ impl SchemeManager for LocalSchemeManager {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Target {
-    Stdout(String),
-    File(String, String),
+    Stdout(Option<char>),
+    File(String, Option<char>),
 }
 
 /// Implementation of the scheme manager for a distributed execution
@@ -303,15 +313,14 @@ impl DistributedSchemeManager {
 }
 
 impl SchemeManager for DistributedSchemeManager {
-    fn get_printer(&mut self, terminator: &str) -> String {
-        let index = self.register_printer(Target::Stdout(terminator.to_string()));
+    fn get_printer(&mut self, terminator: Option<char>) -> String {
+        let index = self.register_printer(Target::Stdout(terminator));
 
         format!("%lf3:print:{index}")
     }
 
-    fn get_file_printer(&mut self, filename: &str, terminator: &str) -> String {
-        let index =
-            self.register_printer(Target::File(filename.to_string(), terminator.to_string()));
+    fn get_file_printer(&mut self, filename: &str, terminator: Option<char>) -> String {
+        let index = self.register_printer(Target::File(filename.to_string(), terminator));
 
         format!("%lf3:print:{index}")
     }
