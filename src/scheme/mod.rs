@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use target_scheme::TargetScheme;
 
+/// Information collected about the compilation
 pub struct CompiledExpression {
     policy_body: String,
     options: String,
@@ -17,7 +18,10 @@ pub struct CompiledExpression {
     definitions: String,
     initialization: String,
     terminate: String,
-    io_map: Option<HashMap<usize, Target>>,
+
+    /// Reference for the frame indexes that may come up. Each index maps to a pair with the
+    /// destination filename, and character termination
+    io_map: Option<HashMap<u32, Target>>,
 }
 
 /// Returns a closure that will return the code needed to parse an MDT when given a path towards
@@ -93,7 +97,7 @@ impl CompiledExpression {
         )
     }
 
-    pub fn io_map(&self) -> Option<HashMap<usize, Target>> {
+    pub fn io_map(&self) -> Option<HashMap<u32, Target>> {
         self.io_map.clone()
     }
 }

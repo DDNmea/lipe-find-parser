@@ -217,7 +217,7 @@ mod find_compilation {
         let (opt, exp) =
             parse(&mut clone).unwrap_or((RunOptions::default(), Exp::Test(Test::False)));
 
-        compile(&exp, &opt).unwrap()("/")
+        compile(&exp, &opt).unwrap().scheme("/")
     }
 
     #[test]

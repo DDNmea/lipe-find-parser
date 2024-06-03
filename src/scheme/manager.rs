@@ -4,10 +4,10 @@ use std::collections::HashMap;
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 struct OpenPort {
     /// The id associated with the port
-    port: usize,
+    port: u32,
 
     /// The id of the defined mutex gatekeeping port access
-    mutex: usize,
+    mutex: u32,
 }
 
 /// Collection of methods the code generation uses to keep track of IDs and initialization
@@ -27,7 +27,7 @@ pub trait SchemeManager {
 
     fn terminate(&self) -> String;
 
-    fn printer_map(&self) -> Option<HashMap<usize, Target>>;
+    fn printer_map(&self) -> Option<HashMap<u32, Target>>;
 
     fn modules(&self) -> &'static str;
 }
@@ -40,7 +40,7 @@ pub struct LocalSchemeManager {
     /// List of instructions to run after the dynamic-wind
     fini: Vec<String>,
 
-    var_index: usize,
+    var_index: u32,
     vars: Vec<String>,
 
     /// The default output port. Defaults to None when not initialized.
@@ -51,12 +51,12 @@ pub struct LocalSchemeManager {
 
     /// Registry of defined printers. The keys contain the port used along with the termination - a
     /// string to append to each printed content.
-    printers: HashMap<(OpenPort, String), usize>,
+    printers: HashMap<(OpenPort, String), u32>,
 
     /// String matches. The map key contains the string to match and the case-insensitiveness (true
     /// => case insensitive). The integer value is the reference of the match function assigned if
     /// the pattern was previously encountered.
-    matches: HashMap<(String, bool), usize>,
+    matches: HashMap<(String, bool), u32>,
 }
 
 impl Default for LocalSchemeManager {
@@ -64,7 +64,7 @@ impl Default for LocalSchemeManager {
         LocalSchemeManager {
             init: vec![],
             fini: vec![],
-            var_index: 0usize,
+            var_index: 0u32,
             vars: vec![],
 
             default_port: None,
@@ -101,7 +101,7 @@ impl LocalSchemeManager {
         self.default_port.as_ref().unwrap().clone()
     }
 
-    fn register_printer(&mut self, port: OpenPort, terminator: String) -> usize {
+    fn register_printer(&mut self, port: OpenPort, terminator: String) -> u32 {
         let key = (port.clone(), terminator.clone());
 
         if self.printers.get(&key).is_none() {
@@ -143,7 +143,7 @@ impl LocalSchemeManager {
     }
 
     /// Internal function used by get_matcher
-    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> usize {
+    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> u32 {
         let matcher = match (is_pattern(pattern), insensitive) {
             (true, true) => "fnmatch-ci",
             (false, true) => "streq-ci",
@@ -214,7 +214,7 @@ impl SchemeManager for LocalSchemeManager {
         }
     }
 
-    fn printer_map(&self) -> Option<HashMap<usize, Target>> {
+    fn printer_map(&self) -> Option<HashMap<u32, Target>> {
         None
     }
 
@@ -241,7 +241,7 @@ pub struct DistributedSchemeManager {
     /// List of instructions to run after the dynamic-wind
     fini: Vec<String>,
 
-    var_index: usize,
+    var_index: u32,
     vars: Vec<String>,
 
     /// The only output port
@@ -252,16 +252,16 @@ pub struct DistributedSchemeManager {
 
     /// Registry of defined printers. The keys contain the port used along with the termination - a
     /// string to append to each printed content.
-    printers: HashMap<Target, usize>,
+    printers: HashMap<Target, u32>,
 
     /// String matches. The map key contains the string to match and the case-insensitiveness (true
     /// => case insensitive). The integer value is the reference of the match function assigned if
     /// the pattern was previously encountered.
-    matches: HashMap<(String, bool), usize>,
+    matches: HashMap<(String, bool), u32>,
 }
 
 impl DistributedSchemeManager {
-    fn register_printer(&mut self, target: Target) -> usize {
+    fn register_printer(&mut self, target: Target) -> u32 {
         if !self.printers.contains_key(&target) {
             let index = self.var_index;
             self.printers.insert(target.clone(), index);
@@ -276,7 +276,7 @@ impl DistributedSchemeManager {
         self.printers.get(&target).unwrap().clone()
     }
 
-    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> usize {
+    fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> u32 {
         let matcher = match (is_pattern(pattern), insensitive) {
             (true, true) => "fnmatch-ci",
             (false, true) => "streq-ci",
@@ -343,7 +343,7 @@ impl SchemeManager for DistributedSchemeManager {
         }
     }
 
-    fn printer_map(&self) -> Option<HashMap<usize, Target>> {
+    fn printer_map(&self) -> Option<HashMap<u32, Target>> {
         Some(self.printers.iter().map(|(k, v)| (*v, k.clone())).collect())
     }
 
@@ -357,7 +357,7 @@ impl Default for DistributedSchemeManager {
         DistributedSchemeManager {
             init: vec![],
             fini: vec![],
-            var_index: 2usize,
+            var_index: 2u32,
             vars: vec![
                 String::from("(%lf3:port:0 (current-output-port))"),
                 String::from("(%lf3:mutex:1 (make-mutex))"),
