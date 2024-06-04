@@ -80,6 +80,59 @@ fn error(message: JsValue) -> Result<(), JsValue> {
     Ok(())
 }
 
+use lipe_find_parser::Target;
+use std::collections::HashMap;
+use std::fmt::Write;
+fn generate_html_table(map: &Option<HashMap<u32, Target>>) -> String {
+    let mut html = String::new();
+
+    // Start the HTML table
+    html.push_str("  <tr>\n");
+    html.push_str("    <th>Index</th>\n");
+    html.push_str("    <th>Filename</th>\n");
+    html.push_str("    <th>Terminator</th>\n");
+    html.push_str("  </tr>\n");
+
+    match map {
+        Some(map) => {
+            // Iterate over the HashMap and add rows to the table
+            for (index, target) in map {
+                html.push_str("<tr>\n");
+                write!(html, "<td>{}</td>\n", index).unwrap();
+
+                match target {
+                    Target::Stdout(term) => {
+                        let terminator =
+                            term.map_or(String::new(), |c| format!("0x{:02x}", c as u8));
+                        write!(
+                            html,
+                            "<td>stdout</td><td>'{}'</td>\n",
+                            html_escape::encode_text(&terminator)
+                        )
+                        .unwrap();
+                    }
+                    Target::File(filename, term) => {
+                        let terminator =
+                            term.map_or(String::new(), |c| format!("0x{:02x}", c as u8));
+                        write!(
+                            html,
+                            "<td>{}</td><td>'{}'</td>\n",
+                            html_escape::encode_text(&filename),
+                            html_escape::encode_text(&terminator),
+                        )
+                        .unwrap();
+                    }
+                }
+
+                html.push_str("  </tr>\n");
+            }
+        }
+        None => html.push_str("<tr><td>*</td><td>stdout</td><td>'\\n'</td>\n"),
+    }
+
+    html
+}
+
 fn update() -> Result<(), JsValue> {
     let document = get_document()?;
 
@@ -92,6 +145,9 @@ fn update() -> Result<(), JsValue> {
     let _ = expression.trim();
 
     let ast = document.query_selector("pre#ast")?.ok_or("No AST div !")?;
+    let io_map = document
+        .query_selector("table#io-map")?
+        .ok_or("No IO map table !")?;
     let options = document
         .query_selector("pre#options")?
         .ok_or("No option div !")?;
@@ -117,9 +173,10 @@ fn update() -> Result<(), JsValue> {
     options.set_inner_html(&format!("{:#?}", opt));
 
     let code = compile(&exp, &opt).map_err(|err| err.to_string())?;
+    io_map.set_inner_html(&generate_html_table(&code.io_map()));
     scheme.set_inner_html(&html_escape::encode_text(&format!(
         "{}",
-        code("[DEVICE PATH]")
+        code.scheme("[DEVICE PATH]")
     )));
 
     //let subtitle = document.query_selector("div.subtitle")?.ok_or("No subtitle div !")?;

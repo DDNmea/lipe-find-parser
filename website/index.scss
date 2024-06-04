@@ -49,8 +49,9 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
-        "options ast" "scheme scheme";
+        "options ast" "io-map ast" "scheme scheme";
     grid-gap: 15px;
+    align-items: center;
 
     div {
         display: flex;
@@ -75,6 +76,20 @@ div#options {
 #scheme {
     grid-area: scheme;
     @include monospace();
+}
+
+#io-map {
+    grid-area: io-map;
+    @include monospace();
+
+    table {
+        @include block-element();
+        margin: 0;
+
+        td {
+            text-align: center;
+        }
+    }
 }
 
 pre {
