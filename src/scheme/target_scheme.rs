@@ -281,16 +281,18 @@ impl TargetScheme for Test {
             Test::InsensitiveName(s) => buffer.push_str(&format!("(call-with-name {})", ctx.get_matcher(s, true))),
             Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, true))),
             Test::Links(cmp) => buffer.push_str(&format_cmp!(cmp, "nlink")),
+            Test::MirrorCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-mirror-count")),
             Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
             Test::Name(s) => buffer.push_str(&format!("(call-with-name {})", ctx.get_matcher(s, false))),
             Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, false))),
+            Test::Perm(check) => compile_perm_check(buffer, check),
             Test::Readable => buffer.push_str("(readable)"),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
+            Test::StripeCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-stripe-count")),
             Test::True => buffer.push_str("#t"),
             Test::Type(list) => compile_type_list_comp(buffer, list),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::Writable => buffer.push_str("(writable)"),
-            Test::Perm(check) => compile_perm_check(buffer, check),
 
             // The following are tests defined by GNU find that are not supported either by LiPE or
             // exfind

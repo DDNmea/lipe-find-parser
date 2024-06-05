@@ -164,19 +164,20 @@ impl Parseable for Test {
                 unary!("-ipath", Test::InsensitivePath, String::parse),
                 unary!("-iregex", Test::InsensitiveRegex, String::parse),
                 unary!("-links", Test::Links, Comparison::<u64>::parse),
+                unary!("-mirror-count", Test::MirrorCount, Comparison::<u32>::parse),
                 unary!(
                     "-mmin",
                     Test::ModifyTime,
                     parse_comp_format::<TimeSpec, MinDefault>
                 ),
                 unary!("-mnewer", Test::ModifyNewer, String::parse),
+            )),
+            alt((
                 unary!(
                     "-mtime",
                     Test::ModifyTime,
                     parse_comp_format::<TimeSpec, DayDefault>
                 ),
-            )),
-            alt((
                 unary!("-name", Test::Name, String::parse),
                 literal("-nouser").value(Test::NoGroup),
                 literal("-nogroup").value(Test::NoUser),
@@ -190,6 +191,7 @@ impl Parseable for Test {
                 unary!("-regex", Test::Regex, String::parse),
                 unary!("-samefile", Test::Samefile, String::parse),
                 unary!("-size", Test::Size, Comparison::<Size>::parse),
+                unary!("-stripe-count", Test::StripeCount, Comparison::<u32>::parse),
                 literal("-true").value(Test::True),
                 unary!("-type", Test::Type, Vec::<FileType>::parse),
                 unary!("-uid", Test::UserId, Comparison::<u32>::parse),

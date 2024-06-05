@@ -253,23 +253,25 @@ pub enum Test {
     Executable,
     False,
     GroupId(Comparison<u32>),
-    InsensitiveName(String),
     InodeNumber(Comparison<u32>),
+    InsensitiveName(String),
     InsensitivePath(String),
     Links(Comparison<SizeType>),
+    MirrorCount(Comparison<u32>),
     ModifyTime(Comparison<TimeSpec>),
     Name(String),
-    //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     Path(String),
     Perm(PermCheck),
     Readable,
     Size(Comparison<Size>),
+    StripeCount(Comparison<u32>),
     True,
     Type(Vec<FileType>),
     UserId(Comparison<u32>),
     Writable,
     //XType(Type)
     // The following are not supported in the final scheme output
+    //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     AccessNewer(String),
     ChangeNewer(String),
     FsType(String),
