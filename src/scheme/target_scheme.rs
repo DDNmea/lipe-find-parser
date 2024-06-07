@@ -201,7 +201,7 @@ fn snippet(field: &FormatField) -> CResult<Option<String>> {
         FormatField::Type => "type->char (type)".to_string(),
         FormatField::FileId => "file-fid".to_string(),
         FormatField::StripeSize => "lov-stripe-size".to_string(),
-        FormatField::StripeCount => "lov-stripe-count".to_string(),
+        FormatField::StripeCount => "lmv-stripe-count".to_string(),
         FormatField::MirrorCount => "lov-mirror-count".to_string(),
         FormatField::ProjectId => "projid".to_string(),
 
