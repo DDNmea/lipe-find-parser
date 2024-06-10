@@ -294,15 +294,23 @@ pub enum Action {
     //ExecOnAll(Vec<String>)
     //ExecOnParent(Vec<String>)
     //ExecOnAllParent(Vec<String>)
+    /// Call ls on the matching paths and print to a file
     FileList(String),
+    /// Output matching paths to a file
     FilePrint(String),
+    /// Output matching paths to a file, terminated by a null byte
     FilePrintNull(String),
+    /// Output matching paths to a file, with the given FORMAT
     FilePrintFormatted(String, Vec<FormatElement>),
+    /// Call ls on the matching paths
     List,
     //Ask(Vec<String>)
     //AskDir(Vec<String>)
+    /// Output matching paths
     Print,
+    /// Output matching paths, terminated by a null byte
     PrintNull,
+    /// Output matching with the given FORMAT
     PrintFormatted(Vec<FormatElement>),
     PrintFid,
     Prune,

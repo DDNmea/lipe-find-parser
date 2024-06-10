@@ -95,27 +95,18 @@ impl Parseable for Action {
         )
         .context(label("-fprintf"));
 
-        let printf = preceded(
-            "-printf",
-            cut_err(preceded(
-                multispace1,
-                quote_delimiter().and_then(Vec::<FormatElement>::parse),
-            )),
-        )
-        .context(label("-printf"));
-
         alt((
-            unary!(
-                "-fls",
-                Action::FileList,
-                String::parse.context(expected("filename"))
-            ),
+            unary!("-fls", Action::FileList, String::parse),
             fprintf.map(|(f, t)| Action::FilePrintFormatted(f, t)),
             unary!("-fprint0", Action::FilePrintNull, String::parse),
             unary!("-fprint", Action::FilePrint, String::parse),
             terminated("-ls", multispace0).value(Action::List),
             terminated("-print-file-fid", multispace0).value(Action::PrintFid),
-            printf.map(Action::PrintFormatted),
+            unary!(
+                "-printf",
+                Action::PrintFormatted,
+                quote_delimiter().and_then(Vec::<FormatElement>::parse)
+            ),
             terminated("-print0", multispace0).value(Action::PrintNull),
             terminated("-print", multispace0).value(Action::Print),
             terminated("-prune", multispace0).value(Action::Prune),

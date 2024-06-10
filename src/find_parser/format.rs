@@ -73,7 +73,6 @@ impl Parseable for FormatField {
                     preceded("A", any).map(FormatField::AccessFormatted),
                     preceded("C", any).map(FormatField::ChangeFormatted),
                     preceded("T", any).map(FormatField::ModifyFormatted),
-                    preceded("T", any).map(FormatField::ModifyFormatted),
                     delimited("{xattr:", alpha1, "}")
                         .map(|name: &str| FormatField::XAttr(String::from(name))),
                 )),
