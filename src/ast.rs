@@ -269,6 +269,8 @@ pub enum Test {
     Type(Vec<FileType>),
     UserId(Comparison<u32>),
     Writable,
+    Xattr(String),
+    XattrMatch(String, String),
     //XType(Type)
     // The following are not supported in the final scheme output
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms

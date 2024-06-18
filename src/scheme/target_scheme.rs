@@ -293,6 +293,15 @@ impl TargetScheme for Test {
             Test::Type(list) => compile_type_list_comp(buffer, list),
             Test::UserId(cmp) => buffer.push_str(&format_cmp!(cmp, "uid")),
             Test::Writable => buffer.push_str("(writable)"),
+            Test::Xattr(field) => buffer.push_str(&format!("(xattr? \"{field}\")")),
+            Test::XattrMatch(field, value) => {
+                let offending = |c:char| {"*?['".contains(c)};
+                if !(field.contains(offending) || value.contains(offending)) {
+                    buffer.push_str(&format!("(equal? (xattr-ref-string \"{field}\") \"{value}\")"));
+                } else {
+                    buffer.push_str(&format!("(xattr-match? \"{field}\" \"{value}\")"));
+                }
+            }
 
             // The following are tests defined by GNU find that are not supported either by LiPE or
             // exfind

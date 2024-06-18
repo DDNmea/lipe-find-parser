@@ -187,6 +187,23 @@ impl Parseable for Test {
                 unary!("-type", Test::Type, Vec::<FileType>::parse),
                 unary!("-uid", Test::UserId, Comparison::<u32>::parse),
                 unary!("-user", Test::User, String::parse),
+                preceded(
+                    "-xattr-match",
+                    cut_err(
+                        preceded(
+                            multispace1,
+                            separated_pair(
+                                String::parse.context(expected("attribute")),
+                                multispace1,
+                                String::parse.context(expected("value")),
+                            ),
+                        )
+                        .context(expected("field_and_value")),
+                    ),
+                )
+                .map(|(field, value)| Test::XattrMatch(field, value))
+                .context(label("-xattr-match")),
+                unary!("-xattr", Test::Xattr, String::parse),
                 literal("-writable").value(Test::Writable),
             )),
         ))
