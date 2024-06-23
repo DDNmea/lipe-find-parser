@@ -33,6 +33,23 @@ macro_rules! unary {
     };
 }
 
+macro_rules! binary {
+    ($identifier:expr, $transform:expr, $parser_lhs:expr, $parser_rhs:expr, $arguments:expr) => {
+        preceded(
+            $identifier,
+            cut_err(
+                preceded(
+                    multispace1,
+                    separated_pair($parser_lhs, multispace1, $parser_rhs),
+                )
+                .context(expected($arguments)),
+            ),
+        )
+        .context(label($identifier))
+        .map($transform)
+    };
+}
+
 fn parse_comp_format<T, D>(input: &mut &'_ str) -> PResult<Comparison<T>>
 where
     D: Parseable + Into<T>,
@@ -79,25 +96,17 @@ impl Parseable for PositionalOption {
 
 impl Parseable for Action {
     fn parse(input: &mut &'_ str) -> PResult<Action> {
-        let fprintf = preceded(
-            "-fprintf",
-            cut_err(
-                preceded(
-                    multispace1,
-                    separated_pair(
-                        String::parse.context(expected("filename")),
-                        multispace1,
-                        quote_delimiter().and_then(Vec::<FormatElement>::parse),
-                    ),
-                )
-                .context(expected("file_and_format")),
-            ),
-        )
-        .context(label("-fprintf"));
-
         alt((
             unary!("-fls", Action::FileList, String::parse),
-            fprintf.map(|(f, t)| Action::FilePrintFormatted(f, t)),
+            binary!(
+                "-fprintf",
+                |(f, t)| Action::FilePrintFormatted(f, t),
+                String::parse.context(expected("filename")),
+                quote_delimiter()
+                    .and_then(Vec::<FormatElement>::parse)
+                    .context(expected("format_string")),
+                "filename_and_format"
+            ),
             unary!("-fprint0", Action::FilePrintNull, String::parse),
             unary!("-fprint", Action::FilePrint, String::parse),
             terminated("-ls", multispace0).value(Action::List),
@@ -187,22 +196,13 @@ impl Parseable for Test {
                 unary!("-type", Test::Type, Vec::<FileType>::parse),
                 unary!("-uid", Test::UserId, Comparison::<u32>::parse),
                 unary!("-user", Test::User, String::parse),
-                preceded(
+                binary!(
                     "-xattr-match",
-                    cut_err(
-                        preceded(
-                            multispace1,
-                            separated_pair(
-                                String::parse.context(expected("attribute")),
-                                multispace1,
-                                String::parse.context(expected("value")),
-                            ),
-                        )
-                        .context(expected("field_and_value")),
-                    ),
-                )
-                .map(|(field, value)| Test::XattrMatch(field, value))
-                .context(label("-xattr-match")),
+                    |(field, value)| Test::XattrMatch(field, value),
+                    String::parse.context(expected("attribute")),
+                    String::parse.context(expected("value")),
+                    "attribute_and_value"
+                ),
                 unary!("-xattr", Test::Xattr, String::parse),
                 literal("-writable").value(Test::Writable),
             )),
