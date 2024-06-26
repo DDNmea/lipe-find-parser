@@ -262,6 +262,7 @@ pub enum Test {
     Name(String),
     Path(String),
     Perm(PermCheck),
+    Pool(String),
     Readable,
     Size(Comparison<Size>),
     StripeCount(Comparison<u32>),

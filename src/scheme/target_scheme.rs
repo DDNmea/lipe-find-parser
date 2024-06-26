@@ -286,6 +286,7 @@ impl TargetScheme for Test {
             Test::Name(s) => buffer.push_str(&format!("(call-with-name {})", ctx.get_matcher(s, false))),
             Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, false))),
             Test::Perm(check) => compile_perm_check(buffer, check),
+            Test::Pool(pool_name) => buffer.push_str(&format!("(member \"{pool_name}\" (lov-pools))")),
             Test::Readable => buffer.push_str("(readable)"),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
             Test::StripeCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-stripe-count")),

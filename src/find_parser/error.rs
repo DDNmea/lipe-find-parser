@@ -25,6 +25,8 @@ use winnow::Parser;
 /// method transforms the reference back into a string.
 fn explain(error_reference: &str) -> String {
     match error_reference {
+        "file_and_format" => "Expected a filename and format string",
+        "attribute_and_value" => "Expected an attribute name and a value to compare",
         "invalid_comparison" => "Invalid comparison operator",
         "invalid_format_specifier" => "Found an invalid format specifier",
         "invalid_permission_format" => "Invalid permission format",

@@ -187,6 +187,7 @@ impl Parseable for Test {
                     Test::Perm,
                     quote_delimiter().and_then(PermCheck::parse)
                 ),
+                unary!("-pool", Test::Pool, String::parse),
                 literal("-readable").value(Test::Readable),
                 unary!("-regex", Test::Regex, String::parse),
                 unary!("-samefile", Test::Samefile, String::parse),
