@@ -152,6 +152,16 @@ impl Parseable for Test {
                     Test::ChangeTime,
                     parse_comp_format::<TimeSpec, DayDefault>
                 ),
+                unary!(
+                    "-crmin",
+                    Test::CreateTime,
+                    parse_comp_format::<TimeSpec, MinDefault>
+                ),
+                unary!(
+                    "-crtime",
+                    Test::CreateTime,
+                    parse_comp_format::<TimeSpec, DayDefault>
+                ),
                 literal("-empty").value(Test::Empty),
                 literal("-executable").value(Test::Executable),
                 literal("-false").value(Test::False),
@@ -165,14 +175,14 @@ impl Parseable for Test {
                 unary!("-iregex", Test::InsensitiveRegex, String::parse),
                 unary!("-links", Test::Links, Comparison::<u64>::parse),
                 unary!("-mirror-count", Test::MirrorCount, Comparison::<u32>::parse),
+            )),
+            alt((
                 unary!(
                     "-mmin",
                     Test::ModifyTime,
                     parse_comp_format::<TimeSpec, MinDefault>
                 ),
                 unary!("-mnewer", Test::ModifyNewer, String::parse),
-            )),
-            alt((
                 unary!(
                     "-mtime",
                     Test::ModifyTime,
@@ -188,6 +198,7 @@ impl Parseable for Test {
                     quote_delimiter().and_then(PermCheck::parse)
                 ),
                 unary!("-pool", Test::Pool, String::parse),
+                unary!("-projid", Test::ProjectId, Comparison::<u32>::parse),
                 literal("-readable").value(Test::Readable),
                 unary!("-regex", Test::Regex, String::parse),
                 unary!("-samefile", Test::Samefile, String::parse),
@@ -197,6 +208,7 @@ impl Parseable for Test {
                 unary!("-type", Test::Type, Vec::<FileType>::parse),
                 unary!("-uid", Test::UserId, Comparison::<u32>::parse),
                 unary!("-user", Test::User, String::parse),
+                literal("-writable").value(Test::Writable),
                 binary!(
                     "-xattr-match",
                     |(field, value)| Test::XattrMatch(field, value),
@@ -204,9 +216,8 @@ impl Parseable for Test {
                     String::parse.context(expected("value")),
                     "attribute_and_value"
                 ),
-                unary!("-xattr", Test::Xattr, String::parse),
-                literal("-writable").value(Test::Writable),
             )),
+            alt((unary!("-xattr", Test::Xattr, String::parse),)),
         ))
         .context(label("test"))
         .parse_next(input)

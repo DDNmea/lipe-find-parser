@@ -249,6 +249,7 @@ pub enum FormatElement {
 pub enum Test {
     AccessTime(Comparison<TimeSpec>),
     ChangeTime(Comparison<TimeSpec>),
+    CreateTime(Comparison<TimeSpec>),
     Empty,
     Executable,
     False,
@@ -263,6 +264,7 @@ pub enum Test {
     Path(String),
     Perm(PermCheck),
     Pool(String),
+    ProjectId(Comparison<u32>),
     Readable,
     Size(Comparison<Size>),
     StripeCount(Comparison<u32>),
@@ -272,7 +274,7 @@ pub enum Test {
     Writable,
     Xattr(String),
     XattrMatch(String, String),
-    //XType(Type)
+
     // The following are not supported in the final scheme output
     //NewerXY(Timestamp, Timestamp, String) // A whole can of worms
     AccessNewer(String),
@@ -288,6 +290,7 @@ pub enum Test {
     Regex(String),
     Samefile(String),
     User(String),
+    //XType(Type)
 }
 
 #[derive(Debug, Clone, PartialEq)]

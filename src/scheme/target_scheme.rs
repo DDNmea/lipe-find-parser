@@ -273,6 +273,7 @@ impl TargetScheme for Test {
         match self {
             Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
             Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
+            Test::CreateTime(cmp) => compile_time_comp(buffer, "crtime", &cmp),
             Test::Empty => buffer.push_str("(empty)"),
             Test::Executable => buffer.push_str("(executable)"),
             Test::False => buffer.push_str("#f"),
@@ -287,6 +288,7 @@ impl TargetScheme for Test {
             Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, false))),
             Test::Perm(check) => compile_perm_check(buffer, check),
             Test::Pool(pool_name) => buffer.push_str(&format!("(member \"{pool_name}\" (lov-pools))")),
+            Test::ProjectId(cmp) => buffer.push_str(&format_cmp!(cmp, "projid")),
             Test::Readable => buffer.push_str("(readable)"),
             Test::Size(cmp) => compile_size_comp(buffer, &cmp),
             Test::StripeCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-stripe-count")),
