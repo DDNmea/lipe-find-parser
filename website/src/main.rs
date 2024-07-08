@@ -49,6 +49,12 @@ pub fn setup() -> Result<(), JsValue> {
         closure.forget();
     }
 
+    let manual = document
+        .query_selector("div#manual")?
+        .ok_or("No manual spot")?;
+
+    manual.set_inner_html(include_str!(concat!(env!("OUT_DIR"), "/manual.html")));
+
     update()
 }
 

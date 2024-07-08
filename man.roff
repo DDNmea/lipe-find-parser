@@ -1,0 +1,425 @@
+.TH EXFIND 1 "July 2024" "exfind (lipe) v0.1" "User Commands"
+.SH NAME
+exfind \- manual page for exfind v0.1
+
+.SH EXPRESSIONS
+The \fIEXPRESSION\fR is taken to be all command line arguments
+following the global options and consists of tests, actions, and operators.
+
+If \fIEXPRESSION\fR contains no actions then the -print-relative-path
+is performed on all files for which \fIEXPRESSION\fR is true.
+
+.SH OPERATORS
+.P
+Listed in order of decreasing precedence:
+
+.IP "( \fIexpr\fR )"
+Force precedence. Note that the '(' and ')' characters must be quoted
+or slash escaped to prevent interpretation by the shell.
+
+.IP "! \fIexpr\fR"
+Logical not. Note that the '!' character must be quoted or slash
+escaped to prevent interpretation by the shell.
+
+.IP "\-not \fIexpr\fR"
+True if \fIexpr\fR is false.
+
+.IP "\fIexpr1 expr2\fR"
+Logical and. Two expressions in a row are taken to be joined with an
+implied
+.BR \-and ;
+
+.IP "\fIexpr1\fR \-a \fIexpr2\fR"
+Same as
+.IR "expr1 expr2"
+
+.IP "\fIexpr1\fR \-and \fIexpr2\fR"
+Same as
+.IR "expr1 expr2"
+
+.IP "\fIexpr1\fR \-o \fIexpr2\fR"
+Logical or.
+
+.IP "\fIexpr1\fR \-or \fIexpr2\fR"
+Same as \fIexpr1\fR
+.B \-o
+.IR expr2
+
+.IP "\fIexpr1\fR , \fIexpr2\fR"
+Evaluate \fIexpr1\fR and \fIexpr2\fR, discarding the value of
+ \fIexpr1\fR and returning value of
+.IR expr2 .
+
+.SH TESTS
+Numeric arguments may be specified as \fI+n\fP for greater than \fIn\fP,
+or \fI\-n\fP for less than \fIn\fP.
+
+.IP "\-amin \fIn[smhd]\fR"
+File was last accessed
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then minutes is implied.
+
+.IP "\-atime \fIn[smhd]\fR"
+File was last accessed
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then days is implied.
+
+\" .IP "\-blocks \fIn\fR[cwbkMG]"
+\" File consumes \fIn\fP units of space after rounding up to the next
+\" multiple of unit. The suffixes accepted are the same as for \fB\-size\fP.
+\" As with \fB\-size\fP, for a regular file on an MDT, we use the block
+\" count from the SoM xattr as long as the SoM state is \fBstrict\fR or
+\" \fBlazy\fR. Otherwise we use the block count from the inode. Note that
+\" the block count from SoM may not be strictly correct, and that even a
+\" correct block count may not equal what would be expected from the file
+\" size due to factors such as larger OST block sizes, preallocation, and
+\" sparse files
+
+.IP "\-cmin \fIn[smhd]\fR"
+File was last changed
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then minutes is implied.
+
+.IP "\-ctime \fIn[smhd]\fR"
+File was last changed
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then days is implied.
+
+.IP "\-crmin \fIn[smhd]\fR"
+File was created
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then minutes is implied.
+
+.IP "\-crtime \fIn[smhd]\fR"
+File was created
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then days is implied.
+
+.IP "\-empty"
+File is empty.
+
+.IP "\-executable"
+File is executable.
+
+.IP \-false
+Return false.
+
+.IP "\-gid \fIn\fR"
+File has numeric group ID
+.IR n .
+
+.IP "\-group \fIgname\fR"
+File belongs to group \fIgname\fP (numeric group ID allowed).
+
+.IP "\-iname \fIpattern\fR"
+Like
+.BR \-name ,
+but the match is case insensitive.
+
+.IP "\-inum \fIn\fR"
+File has inode number
+.IR n .
+Note this is inode number in the backing filesystem and is not equal
+to the FID-derived inode number seen by clients.
+
+.IP "\-ipath \fIpattern\fR"
+Like \fR\-path\fP but the match is case insensitive.
+
+.IP "\-links \fIn\fR"
+File has \fIn\fP hard links.
+
+.IP "\-mirror-count \fIn\fR"
+File has \fIn\fR mirrors.
+
+.IP "\-mmin \fIn[smhd]\fR"
+File was last modified
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then minutes is implied.
+
+.IP "\-mtime \fIn[smhd]\fR"
+File was last modified
+.IR n
+seconds, minutes, hours, or days ago according to suffix. If no suffix
+is given then days is implied.
+
+.IP "\-name \fIpattern\fR"
+The name of file (the path with the leading directories removed)
+matches shell pattern \fIpattern\fP. For a file with multiple hard
+links, the \fB\-name\fP test returns true if \fBany\fP link matches
+\fIpattern\fP. Shell patterns are described in \fBglob\fP(7). Note
+that \fIpattern\fR should be enclosed in single quotes to avoid
+possible expansion by the shell.
+
+.IP "\-nouser \fIn\fR"
+No user corresponds to the file's numeric ID.
+
+.IP "\-nogroup \fIn\fR"
+No group corresponds to the file's numeric ID.
+
+.IP "\-path \fIpattern\fR"
+File path relative to root of FS matches shell pattern
+\fIpattern\fP. See \fBglob\fP(7).
+
+.IP "\-perm \fImode\fR"
+File permission bits are exactly \fImode\fP (octal or symbolic).
+
+.IP "\-perm \-\fImode\fR"
+File has all of the permission bits \fImode\fP (octal or symbolic) set.
+
+.IP "\-perm /\fImode\fR"
+File has any of the permission bits \fImode\fP (octal or symbolic) set.
+
+.IP "\-pool \fIname\fR"
+File has a layout component specifying pool \fIname\fR.
+
+.IP "\-projid \fIid\fR"
+File has numeric project ID
+.IR id .
+See
+.BR lfs-project (1) .
+
+.IP "\-readable"
+File is readable.
+
+.IP "-samefile \fIname\fR"
+File  refers  to the same inode as \fIname\fR.
+
+.IP "\-size \fIn\fR[cwbkMG]"
+File size is \fIn\fP units after rounding up to the next multiple of
+unit. The following suffixes can be used:
+.RS
+.IP `b'
+for 512-byte blocks (this is the default if no suffix is used)
+.IP `c'
+for bytes
+.IP `w'
+for two-byte words
+.IP `k'
+for kibibytes (KiB, units of 1024 bytes)
+.IP `M'
+for mebibytes (MiB, units of 1024 * 1024 = 1\|048\|576 bytes)
+.IP `G'
+for gibibytes (GiB, units of 1024 * 1024 * 1024 = 1\|073\|741\|824 bytes)
+.RE
+.IP
+For a regular file on an MDT the size is generally read from the Size
+on MDT (SoM) extended attribute. We consider the size from SoM valid
+as long as the SoM state is \fBstrict\fP or \fBlazy\fP. For other file
+types or when scanning an OST we use the size from the inode. This
+may give incorrect results for striped directories.
+
+.IP "\-stripe-count \fIn\fR"
+The last instantiated component of file has \fIn\fR stripes.
+
+.IP \-true
+Return true.
+
+.IP "\-type \fIc\fR"
+File has type
+.RS
+.IP b
+block (buffered) special
+.IP c
+character (unbuffered) special
+.IP d
+directory
+.IP p
+named pipe (FIFO)
+.IP f
+regular file
+.IP l
+symbolic link
+.IP s
+socket
+.RE
+.IP
+To search for more than one type at once, you can supply the combined
+list of type letters separated by a comma ','.
+
+.IP "\-uid \fIn\fR"
+File has numeric user ID
+.IR n .
+
+.IP "\-user \fIuname\fR"
+File is owned by user \fIuname\fP (numeric user ID allowed).
+
+.IP "\-writable"
+File is writable.
+
+.IP "\-xattr \fIname\fR"
+File has an xattr with name \fBequal\fR to \fIname\fR.
+
+.IP "\-xattr-match \fIname\fR \fIvalue\fR"
+File has an xattr whose name and value matches the shell patterns \fIname\fR
+and \fIvalue\fR.
+
+.SH ACTIONS
+\" .IP "\-exec \fIcommand\fR ;"
+\" Execute \fIcommand\fR; true if 0 status is returned. All following
+\" arguments to find are taken to be arguments to the command until an
+\" argument consisting of ';' is encountered. The string '{}' is replaced
+\" by the absolute path of the first hardlink of the current file being
+\" processed everywhere it occurs in the arguments to the
+\" command. Both of these constructions might need to be escaped (with a `\') or
+\" quoted to protect them from expansion by the shell. Regardless of the command,
+\" this requires a locally mounted client for the FS to which the device belongs.
+\" See \fBfind\fP(1) for more information.
+\" 
+\" .IP "\-exec \fIcommand\fR +"
+\" This variant of the \fB\-exec\fP action runs the specified command on the
+\" selected files, but the command line is built by appending each selected file
+\" name at the end; the total number of invocations of the command will be much
+\" less than the number of matched files. The command line is built in much the
+\" same way that xargs builds its command lines. Only one instance of `{}' is
+\" allowed within the command, and (when find is being invoked from a shell) it
+\" should be quoted (for example, '{}') to protect it from interpretation by shells.
+\" The command is executed in the starting directory. If any invocation with
+\" the `+' form returns a non-zero value as exit status, then find returns a
+\" non-zero exit status. If find encounters an error, this can sometimes cause an
+\" immediate exit, so some pending commands may not be run at all. This variant
+\" of \fB\-exec\fP always returns true.
+
+.IP "\-print\-file\-fid"
+Print the current file FID when scanning an MDT, and the FID of the
+file to which the current object belongs when scanning an OST.
+
+\" .IP "\-print\-self\-fid"
+\" Print the current file FID when scanning an MDT, and the filter FID
+\" when scanning an OST. You probably want to use \fB\-print\-file\-fid\fP
+\" instead.
+
+.IP "\-print\-absolute\-path"
+Resolve and print the absolute path of the current file (or the file
+owning the current OST object) followed by a newline. If the file has
+multiple hard links then only the path of the first link will be
+printed. Path resolution requires a locally mounted client for the FS
+to which the device belongs. The local client mount will be
+automatically detected.
+
+.IP "\-print\-relative\-path"
+Like \fB\-print\-absolute\-path\fP but the path printed will be
+relative to the root of the filesystem. Also requires a locally
+mounted client.
+
+.IP "\-print"
+True; print the full file name on the standard output, followed by a newline.
+If you are piping the output of find into another program and there is the
+faintest possibility that the files which you are searching for might
+contain a newline, then you should seriously consider using the \fB\-print0\fP
+option instead of \fB\-print\fP.
+
+.IP "\-print0"
+True; print the full file name on the standard output, followed by a null
+character (instead of the newline character that \fB\-print\fP uses).
+This allows file names that contain newlines or other types of white space
+to be correctly interpreted by programs that process the find output.
+This option corresponds to the -0 option of xargs.
+
+.IP "\-fprint \fIfile\fR"
+Like \fB\-print\fP but print to \fIfile\fR instead of stdout.  If
+\fIfile\fP does not exist when \fBlipe_find3\fR is run then it is
+created; if it does exist, it is truncated. The file
+names '/dev/stdout' and '/dev/stderr' are handled specially; they
+refer to the standard output and standard error output,
+respectively. The output file is always created, even if the predicate
+is never matched.
+
+.IP "\-fprint0 \fIfile\fR"
+Like \fB\-print0\fP but print to \fIfile\fR instead of standard
+output.
+
+.IP "\-printf \fIformat\fR"
+Print \fIformat\fP to the standard output, interpreting '\e' escapes
+and '%' directives. The supported directives include most supported by
+\fBfind\fP(1) and the following extensions:
+.RS
+.IP %{stripe-count},%Lc
+stripe count of last instantiated component
+.IP %{fid},%LF
+file FID
+.IP %{mirror-count},%LN
+FLR mirror count
+.IP %{pool},%Lp
+OST pool name of last instantiated component
+.IP %{projid},%LP
+numerical project ID
+.IP %{stripe-size},%LS
+stripe size of last instantiated component
+.IP %{xattr:NAME}
+contents of NAME xattr as a string
+.RE
+
+.IP "\-fprintf \fIfile\fR \fIformat\fR"
+Like \fB\-printf\fP but print to \fIfile\fR instead of standard
+output.
+
+.IP "\-print-json \fIattrs\fR"
+Print a single line JSON description of the current file. Attributes
+to be printed should be specified as a comma separated
+list. Attributes enclosed in brackets ('[]') are
+optional. Non-optional attributes are required.  Use "lipe_find3
+\--list\-json\-attrs" to see all supported JSON attributes. The
+\fBjq\fP utility may be used to format or transform the output.
+
+\" .IP "\-delete"
+\" Delete the current file. This is deletion by FID and requires a local
+\" client mount. This removes \fBall\fP hard links to a file. Note that a
+\" non empty directory cannot be removed by FID and that even when all
+\" the files in a directory would be removed in a scan they may not be
+\" removed by the time the directory is encountered.
+\" Use of -delete automatically turns on the `-depth' option.
+\" Warnings: Because -delete implies -depth, you cannot use -prune and -delete
+\" together. When paired with -ignore_readdir_race, errors from the -delete action
+\" are ignored if the file has disappeared since the directory was read.
+
+\" .IP "\-collect-fsize-stats \fIreport_name\fR"
+\" Collect statistics about file size, and create file with report.
+\" Save detailed statistics to a file, which can be used when building visual
+\" schemes, and graphs. This also supports all filters lipe_find3 has.
+\" For example, you can collect statistics on files for a specific user,
+\" on a specific modification time, size, file name and other available
+\" parameters in files.
+\" After specifying the option, must specify the full correct
+\" path with the new file name that will be created after finishing lipe_find3.
+\" The files sizes report file can be generated in 4 output
+\" options (out,yaml,json,csv). To specify the desired type of report, you need
+\" to specify the extension from the available ones (out, yaml, json, csv) in
+\" the file name (For example: report_name.json).
+\" If you want to receive reports of all types, you must specify
+\" the extension ".all" (For example: report_name.all). In this case,
+\" reports of all types will be generated.
+\" 
+\" .IP "\--merge-reports=\fIdir_with_reports\fR (only for lipe_scan3)"
+\" If need to merge multiple reports into one, for this purpose in lipe_scan3
+\" there is an option \fB\--merge-reports=\fIDIR\fP\fP, where \fIDIR\fP is the
+\" directory containing various reports in JSON format. As a result, a single
+\" consolidated report will be generated in all necessary formats.
+
+.IP "\-quit"
+Exit immediately. No child processes will be left running, but no more
+paths specified on the command line will be processed.
+
+.SH EXAMPLES
+
+.nf
+.B exfind --mds 'mds00[00-19]' \-type f -user bob \-name '*.txt'
+
+.fi
+
+Print all regular files on 20 MDS owned by \fBbob\fP whose name
+matches '*.txt'. Note that moving the \fB\-name\fP test earlier in the
+expression will likely make it slower.
+
+.SH KNOWN ISSUES
+The \fB\-size\fP, \fB\-blocks\fP, and timestamp tests give incorrect
+results for striped directories.
+
+.SH SEE ALSO
+\fBfind\fP(1)
