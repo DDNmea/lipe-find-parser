@@ -42,8 +42,10 @@ jobs:
         id: configure
         uses: actions/configure-pages@v4
 
-      # Runs a single command using the runners shell
-      - name: install wasm target
+      - name: Install groff
+        run: sudo apt update && sudo apt install -y groff
+
+      - name: Install WASM target for rustc
         run: rustup target add wasm32-unknown-unknown && cd $GITHUB_WORKSPACE/website && trunk build --release --public-url "${{steps.configure.outputs.base_url}}"
 
       - name: Upload built files
