@@ -25,5 +25,7 @@ fn main() {
         .open(format!("{}/manual.html", out_dir))
         .unwrap();
 
-    out.write(contents.inner_html().as_bytes()).unwrap();
+    contents.child_elements().into_iter().skip(4).for_each(|c| {
+        out.write(c.html().as_bytes()).unwrap();
+    });
 }

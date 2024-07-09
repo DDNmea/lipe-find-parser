@@ -123,12 +123,22 @@ pre {
     }
 }
 
+#manual {
+    @include monospace();
+    font-weight: unset;
+    margin: 0 2em;
+}
+
 @media (width <=940px) {
     #data {
         margin: 1em 0 1em 0;
         display: grid;
         grid-template-columns: 1fr;
         grid-template-areas:
-            "options" "ast" "scheme";
+            "options" "ast" "io-map" "scheme";
+    }
+
+    #manual {
+        margin: 0 .7em;
     }
 }
