@@ -189,8 +189,8 @@ impl Parseable for Test {
                     parse_comp_format::<TimeSpec, DayDefault>
                 ),
                 unary!("-name", Test::Name, String::parse),
-                literal("-nouser").value(Test::NoGroup),
-                literal("-nogroup").value(Test::NoUser),
+                literal("-nouser").value(Test::NoUser),
+                literal("-nogroup").value(Test::NoGroup),
                 unary!("-path", Test::Path, String::parse),
                 unary!(
                     "-perm",
