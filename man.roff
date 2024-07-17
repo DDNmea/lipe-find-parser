@@ -4,7 +4,10 @@ exfind \- manual page for exfind v0.1
 
 .SH EXPRESSIONS
 The \fIEXPRESSION\fR is taken to be all command line arguments
-following the global options and consists of tests, actions, and operators.
+following the global options and consists of options, tests, actions
+and operators.
+
+Options must be specified at the start of \fIEXPRESSION\fR.
 
 If \fIEXPRESSION\fR contains no actions then the -print-relative-path
 is performed on all files for which \fIEXPRESSION\fR is true.
@@ -50,9 +53,19 @@ Evaluate \fIexpr1\fR and \fIexpr2\fR, discarding the value of
  \fIexpr1\fR and returning value of
 .IR expr2 .
 
+.SH OPTIONS
+.P
+Must be specified at the start of the expression as they influence the scan.
+
+.IP "\-threads \fIn\fR"
+Use
+.IR n
+threads for each device. Defaults to 4. This scales with the amount of device
+targets, not host targets.
+
 .SH TESTS
 Numeric arguments may be specified as \fI+n\fP for greater than \fIn\fP,
-or \fI\-n\fP for less than \fIn\fP.
+or \fI\-n\fP for lesser than \fIn\fP.
 
 .IP "\-amin \fIn[smhd]\fR"
 File was last accessed
