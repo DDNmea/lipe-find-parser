@@ -4,7 +4,7 @@ mod find_parser;
 mod permission_flags;
 mod scheme;
 
-pub use find_parser::parse;
+pub use find_parser::{parse, tokenize};
 pub use permission_flags::{Mode, SFlag};
 pub use scheme::{compile, manager::Target};
 

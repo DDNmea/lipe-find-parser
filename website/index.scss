@@ -49,7 +49,7 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
-        "options ast" "io-map ast" "scheme scheme";
+        "options tokens" "io-map ast" "scheme scheme";
     grid-gap: 15px;
     align-items: center;
 
@@ -75,6 +75,11 @@ div#options {
 
 #scheme {
     grid-area: scheme;
+    @include monospace();
+}
+
+#tokens {
+    grid-area: tokens;
     @include monospace();
 }
 
@@ -135,7 +140,7 @@ pre {
         display: grid;
         grid-template-columns: 1fr;
         grid-template-areas:
-            "options" "ast" "io-map" "scheme";
+            "options" "tokens" "ast" "io-map" "scheme";
     }
 
     #manual {

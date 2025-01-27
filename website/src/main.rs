@@ -1,4 +1,6 @@
-use lipe_find_parser::{compile, parse};
+use lipe_find_parser::{compile, parse, Target};
+use std::collections::HashMap;
+use std::fmt::Write;
 use std::panic;
 use wasm_bindgen::prelude::*;
 
@@ -86,9 +88,6 @@ fn error(message: JsValue) -> Result<(), JsValue> {
     Ok(())
 }
 
-use lipe_find_parser::Target;
-use std::collections::HashMap;
-use std::fmt::Write;
 fn generate_html_table(map: &Option<HashMap<u32, Target>>) -> String {
     let mut html = String::new();
 
@@ -170,9 +169,11 @@ fn update() -> Result<(), JsValue> {
 
     log::info!("Updating with: {expression}");
 
-    /*let tokens = document
-    .query_selector("div#tokens")?
-    .ok_or("No token div !")?;*/
+    let tokens = document
+        .query_selector("pre#tokens")?
+        .ok_or("No token div !")?;
+    let token_content = lipe_find_parser::tokenize(expression.as_str()).unwrap();
+    tokens.set_inner_html(&html_escape::encode_text(&format!("{:?}", token_content)));
 
     let (opt, exp) = parse(expression).map_err(|err| err.to_string())?;
     ast.set_inner_html(&html_escape::encode_text(&format!("{:#?}", exp)));

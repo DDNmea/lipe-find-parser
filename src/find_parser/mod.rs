@@ -292,6 +292,17 @@ pub fn token(input: &mut &str) -> PResult<Token> {
     .parse_next(input)
 }
 
+pub fn tokenize(input: &str) -> PResult<Vec<Token>> {
+    let tokens = if input.is_empty() {
+        vec![Token::Test(Test::True)]
+    } else {
+        let mut input = input;
+        lex.parse_next(&mut input)?
+    };
+
+    Ok(tokens)
+}
+
 fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     // Parse all the global options at the start of the command line
     let mut globals = RunOptions::default();
@@ -306,11 +317,7 @@ fn _parse(input: &mut &str) -> PResult<(RunOptions, Exp)> {
     .for_each(|g: &GlobalOption| globals.update(g));
 
     // Tokenize the rest of the command line. If empty, we had only options and we insert True
-    let tokens = if input.is_empty() {
-        vec![Token::Test(Test::True)]
-    } else {
-        lex.parse_next(input)?
-    };
+    let tokens = tokenize(input)?;
 
     // Look through the token list to handle global options in the wrong order. Replace them by
     // True to minimize the impact on expected execution.

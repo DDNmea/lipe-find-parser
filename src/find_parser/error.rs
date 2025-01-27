@@ -1,5 +1,4 @@
 use crate::find_parser::prelude::Parseable;
-use thiserror::Error;
 use winnow::error::{ContextError, StrContext, StrContextValue};
 use winnow::Parser;
 
@@ -41,27 +40,15 @@ fn explain(error_reference: &str) -> String {
     .into()
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParserError {
     #[error("Syntax error: {0}")]
-    SyntaxError(SyntaxError),
+    SyntaxError(#[from] SyntaxError),
     #[error("Grammar error: {0}")]
-    GrammarError(GrammarError),
+    GrammarError(#[from] GrammarError),
 }
 
-impl From<SyntaxError> for ParserError {
-    fn from(syn: SyntaxError) -> Self {
-        Self::SyntaxError(syn)
-    }
-}
-
-impl From<GrammarError> for ParserError {
-    fn from(syn: GrammarError) -> Self {
-        Self::GrammarError(syn)
-    }
-}
-
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum SyntaxError {
     #[error("Unexpected token: `{0}`")]
     InvalidToken(String),
@@ -121,7 +108,7 @@ impl SyntaxContext {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum GrammarError {
     #[error("Unknown error with input: `{0}`")]
     UnknownError(String),
