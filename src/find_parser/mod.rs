@@ -344,12 +344,8 @@ pub fn parse<S: AsRef<str>>(input: S) -> Result<(RunOptions, Exp), error::Parser
     // Get a reference to the input to modify while parsing
     let mut input: &str = input.as_ref();
 
-    _parse(&mut input).or_else(|e| {
-        Err(error::ParserError::dispatch(
-            e.into_inner().unwrap(),
-            &mut input,
-        ))
-    })
+    _parse(&mut input)
+        .map_err(|e| error::ParserError::dispatch(e.into_inner().unwrap(), &mut input))
 }
 
 #[test]

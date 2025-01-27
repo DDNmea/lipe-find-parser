@@ -1,7 +1,8 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 /// A convenience struct to store output port information
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Copy)]
 struct OpenPort {
     /// The id associated with the port
     port: u32,
@@ -33,7 +34,7 @@ pub trait SchemeManager {
 }
 
 /// Implementation of the scheme manager for a local (non-distributed) execution
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct LocalSchemeManager {
     /// List of instructions to run on the first step of the dynamic-wind
     init: Vec<String>,
@@ -57,22 +58,6 @@ pub struct LocalSchemeManager {
     /// => case insensitive). The integer value is the reference of the match function assigned if
     /// the pattern was previously encountered.
     matches: HashMap<(String, bool), u32>,
-}
-
-impl Default for LocalSchemeManager {
-    fn default() -> Self {
-        LocalSchemeManager {
-            init: vec![],
-            fini: vec![],
-            var_index: 0u32,
-            vars: vec![],
-
-            default_port: None,
-            files: HashMap::new(),
-            printers: HashMap::new(),
-            matches: HashMap::new(),
-        }
-    }
 }
 
 fn is_pattern(input: &str) -> bool {
@@ -105,13 +90,13 @@ impl LocalSchemeManager {
             self.var_index += 2;
         }
 
-        self.default_port.as_ref().unwrap().clone()
+        *self.default_port.as_ref().unwrap()
     }
 
     fn register_printer(&mut self, port: OpenPort, terminator: Option<char>) -> u32 {
-        let key = (port.clone(), terminator.clone());
+        let key = (port, terminator);
 
-        if self.printers.get(&key).is_none() {
+        if let Entry::Vacant(e) = self.printers.entry(key) {
             self.vars.push(format!(
                 "(%lf3:print:{} (make-printer %lf3:port:{} %lf3:mutex:{} {}))",
                 self.var_index,
@@ -120,16 +105,16 @@ impl LocalSchemeManager {
                 terminator_escape(terminator)
             ));
 
-            self.printers.insert(key.clone(), self.var_index);
+            e.insert(self.var_index);
 
             self.var_index += 1;
         }
 
-        self.printers.get(&key).unwrap().clone()
+        *self.printers.get(&key).unwrap()
     }
 
     fn init_file_port(&mut self, filename: String) -> OpenPort {
-        if self.files.get(&filename).is_none() {
+        if !self.files.contains_key(&filename) {
             self.vars.push(format!(
                 "(%lf3:port:{} (open-file \"{}\" \"w\"))",
                 self.var_index, filename,
@@ -149,7 +134,7 @@ impl LocalSchemeManager {
             self.var_index += 2;
         }
 
-        self.files.get(&filename).unwrap().clone()
+        *self.files.get(&filename).unwrap()
     }
 
     /// Internal function used by get_matcher
@@ -175,7 +160,7 @@ impl LocalSchemeManager {
         self.var_index += 2;
         self.matches
             .insert((pattern.to_string(), insensitive), self.var_index - 1);
-        return self.var_index - 1;
+        self.var_index - 1
     }
 }
 
@@ -283,7 +268,7 @@ impl DistributedSchemeManager {
             self.var_index += 1;
         }
 
-        self.printers.get(&target).unwrap().clone()
+        *self.printers.get(&target).unwrap()
     }
 
     fn register_str_match(&mut self, pattern: &str, insensitive: bool) -> u32 {
@@ -308,7 +293,7 @@ impl DistributedSchemeManager {
         self.var_index += 2;
         self.matches
             .insert((pattern.to_string(), insensitive), self.var_index - 1);
-        return self.var_index - 1;
+        self.var_index - 1
     }
 }
 

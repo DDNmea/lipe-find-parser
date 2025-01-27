@@ -296,10 +296,6 @@ pub enum Test {
 #[derive(Debug, Clone, PartialEq)]
 /// Actions supported by the program
 pub enum Action {
-    //Exec(Vec<String>),
-    //ExecOnAll(Vec<String>)
-    //ExecOnParent(Vec<String>)
-    //ExecOnAllParent(Vec<String>)
     /// Call ls on the matching paths and print to a file
     FileList(String),
     /// Output matching paths to a file
@@ -310,8 +306,6 @@ pub enum Action {
     FilePrintFormatted(String, Vec<FormatElement>),
     /// Call ls on the matching paths
     List,
-    //Ask(Vec<String>)
-    //AskDir(Vec<String>)
     /// Output matching paths
     Print,
     /// Output matching paths, terminated by a null byte
@@ -329,6 +323,13 @@ pub enum Action {
     /// differently. This is only inserted in the ast when no other action is present to match the
     /// original behaviour.
     DefaultPrint,
+    // Unsupported
+    //Exec(Vec<String>),
+    //ExecOnAll(Vec<String>)
+    //ExecOnParent(Vec<String>)
+    //ExecOnAllParent(Vec<String>)
+    //Ask(Vec<String>)
+    //AskDir(Vec<String>)
 }
 
 /// Options affecting the behaviour of the scan

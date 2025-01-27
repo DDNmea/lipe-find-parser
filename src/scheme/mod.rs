@@ -58,7 +58,7 @@ pub fn compile(
     // Just the threads, for now
     let options = options
         .threads
-        .and_then(|c| Some(c.to_string()))
+        .map(|c| c.to_string())
         .unwrap_or(String::from("(lipe-getopt-thread-count)"));
 
     Ok(CompiledExpression {

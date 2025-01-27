@@ -108,13 +108,10 @@ impl Parseable for Vec<FormatElement> {
                     _ => vec![FormatElement::Literal(lit), el],
                 }),
             )
-            .fold(
-                move || vec![],
-                |mut acc, e| {
-                    acc.extend(e);
-                    acc
-                },
-            ),
+            .fold(Vec::new, |mut acc, e| {
+                acc.extend(e);
+                acc
+            }),
             // The suffix
             repeat(0.., any),
         )

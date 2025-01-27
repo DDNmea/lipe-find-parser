@@ -93,7 +93,7 @@ impl Parseable for Permission {
                     v.iter()
                         .fold(Mode::from_bits(0).unwrap(), |acc, e| e.update(acc))
                 })
-                .map(|m| Permission(m)),
+                .map(Permission),
             fail.context(expected("invalid_permission_format")),
         ))
         .context(label("permission"))

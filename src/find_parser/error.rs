@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::find_parser::prelude::Parseable;
 use thiserror::Error;
 use winnow::error::{ContextError, StrContext, StrContextValue};
@@ -99,7 +98,7 @@ impl SyntaxContext {
         self.global.as_ref().is_some_and(|t| t.is_empty())
     }
 
-    fn new(raw: &Vec<&StrContext>) -> Self {
+    fn new(raw: &[&StrContext]) -> Self {
         raw.iter().fold(Self::default(), |mut acc, ctx| {
             match ctx {
                 StrContext::Label(s) if *s == "test" => acc.test = Some(String::new()),

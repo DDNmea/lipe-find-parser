@@ -9,25 +9,12 @@ pub use permission_flags::{Mode, SFlag};
 pub use scheme::{compile, manager::Target};
 
 /// Convenience struct to collect the [ast::GlobalOption] passed on the command line.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RunOptions {
     /// Perform the scan depth-first.
     pub depth: bool,
-    //pub max_depth: u32,
-    //pub min_depth: u32,
     /// The number on threads to used for scanning. This is on a per-device basis.
     pub threads: Option<u32>,
-}
-
-impl Default for RunOptions {
-    fn default() -> Self {
-        RunOptions {
-            depth: false,
-            //max_depth: u32::max_value(),
-            //min_depth: u32::min_value(),
-            threads: None,
-        }
-    }
 }
 
 impl RunOptions {
@@ -35,8 +22,6 @@ impl RunOptions {
     pub fn update(&mut self, option: &ast::GlobalOption) {
         match option {
             ast::GlobalOption::Depth => self.depth = true,
-            //GlobalOption::MaxDepth(value) => self.max_depth = *value,
-            //GlobalOption::MinDepth(value) => self.min_depth = *value,
             ast::GlobalOption::Threads(value) => self.threads = Some(*value),
             _ => unreachable!(),
         }

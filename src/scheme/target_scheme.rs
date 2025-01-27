@@ -60,14 +60,14 @@ fn compile_time_comp(buffer: &mut String, field: &str, comp: &Comparison<TimeSpe
     let quotient = move |t: &TimeSpec| format!("quotient (- {secs} ({field})) {}", t.secs());
     let count = |t: &TimeSpec| {
         let (TimeSpec::Second(s) | TimeSpec::Minute(s) | TimeSpec::Hour(s) | TimeSpec::Day(s)) = t;
-        s.clone()
+        *s
     };
 
     buffer.push_str(&format_cmp!(comp, quotient, count));
 }
 
 static S_IFMT: SFlag = SFlag::S_IFMT;
-fn compile_type_list_comp(buffer: &mut String, filetypes: &Vec<FileType>) {
+fn compile_type_list_comp(buffer: &mut String, filetypes: &[FileType]) {
     let comps: Vec<String> = filetypes
         .iter()
         .map(|tp| {
@@ -170,9 +170,7 @@ fn placeholder(field: &FormatField) -> CResult<&'static str> {
         | FormatField::SymbolicTarget
         | FormatField::PermissionsSymbolic
         | FormatField::TypeSymlink
-        | FormatField::SecurityContext => {
-            return Err(CompileError::UnsupportedFormat(format!("{field:?}")))
-        }
+        | FormatField::SecurityContext => return Err(CompileError::Format(format!("{field:?}"))),
     })
 }
 
@@ -229,9 +227,7 @@ fn snippet(field: &FormatField) -> CResult<Option<String>> {
         | FormatField::SymbolicTarget
         | FormatField::PermissionsSymbolic
         | FormatField::TypeSymlink
-        | FormatField::SecurityContext => {
-            return Err(CompileError::UnsupportedFormat(format!("{field:?}")))
-        }
+        | FormatField::SecurityContext => return Err(CompileError::Format(format!("{field:?}"))),
     };
 
     Ok((!snippet.is_empty()).then(move || format!("({})", snippet)))
@@ -271,9 +267,9 @@ impl TargetScheme for Vec<FormatElement> {
 impl TargetScheme for Test {
     fn compile(&self, buffer: &mut String, ctx: &mut dyn SchemeManager) -> CResult {
         match self {
-            Test::AccessTime(cmp) => compile_time_comp(buffer,"atime",&cmp),
-            Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", &cmp),
-            Test::CreateTime(cmp) => compile_time_comp(buffer, "crtime", &cmp),
+            Test::AccessTime(cmp) => compile_time_comp(buffer,"atime", cmp),
+            Test::ChangeTime(cmp) => compile_time_comp(buffer, "ctime", cmp),
+            Test::CreateTime(cmp) => compile_time_comp(buffer, "crtime", cmp),
             Test::Empty => buffer.push_str("(empty)"),
             Test::Executable => buffer.push_str("(executable)"),
             Test::False => buffer.push_str("#f"),
@@ -283,14 +279,14 @@ impl TargetScheme for Test {
             Test::InsensitivePath(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, true))),
             Test::Links(cmp) => buffer.push_str(&format_cmp!(cmp, "nlink")),
             Test::MirrorCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-mirror-count")),
-            Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", &cmp),
+            Test::ModifyTime(cmp) => compile_time_comp(buffer, "mtime", cmp),
             Test::Name(s) => buffer.push_str(&format!("(call-with-name {})", ctx.get_matcher(s, false))),
             Test::Path(s) => buffer.push_str(&format!("(call-with-relative-path {})", ctx.get_matcher(s, false))),
             Test::Perm(check) => compile_perm_check(buffer, check),
             Test::Pool(pool_name) => buffer.push_str(&format!("(member \"{pool_name}\" (lov-pools))")),
             Test::ProjectId(cmp) => buffer.push_str(&format_cmp!(cmp, "projid")),
             Test::Readable => buffer.push_str("(readable)"),
-            Test::Size(cmp) => compile_size_comp(buffer, &cmp),
+            Test::Size(cmp) => compile_size_comp(buffer, cmp),
             Test::StripeCount(cmp) => buffer.push_str(&format_cmp!(cmp, "lov-stripe-count")),
             Test::True => buffer.push_str("#t"),
             Test::Type(list) => compile_type_list_comp(buffer, list),
@@ -322,7 +318,7 @@ impl TargetScheme for Test {
             | Test::Samefile(_) // LiPE support
             | Test::User(_) // exfind - we need to figure out the remote uid
 
-            => return Err(CompileError::UnsupportedTest(format!("{self:?}")))
+            => return Err(CompileError::Test(format!("{self:?}")))
         }
 
         Ok(())
@@ -337,21 +333,21 @@ impl TargetScheme for Operator {
             Operator::And(lhs, rhs) | Operator::List(lhs, rhs) => {
                 buffer.push_str("(and ");
                 lhs.compile(buffer, ctx)?;
-                buffer.push_str(" ");
+                buffer.push(' ');
                 rhs.compile(buffer, ctx)?;
-                buffer.push_str(")");
+                buffer.push(')');
             }
             Operator::Or(lhs, rhs) => {
                 buffer.push_str("(or ");
                 lhs.compile(buffer, ctx)?;
-                buffer.push_str(" ");
+                buffer.push(' ');
                 rhs.compile(buffer, ctx)?;
-                buffer.push_str(")");
+                buffer.push(')');
             }
             Operator::Not(exp) => {
                 buffer.push_str("(not ");
                 exp.compile(buffer, ctx)?;
-                buffer.push_str(")");
+                buffer.push(')');
             }
             // We are not supposed to encounter explicit precendence in the AST
             Operator::Precedence(_) => unreachable!(),
@@ -389,21 +385,21 @@ impl TargetScheme for Action {
                 let printer = ctx.get_printer(None);
                 buffer.push_str(&format!("({printer} "));
                 elements.compile(buffer, ctx)?;
-                buffer.push_str(&format!(")"));
+                buffer.push(')');
             }
 
             Action::FilePrintFormatted(dest, elements) => {
                 let printer = ctx.get_file_printer(dest, None);
                 buffer.push_str(&format!("({printer} "));
                 elements.compile(buffer, ctx)?;
-                buffer.push_str(&format!(")"));
+                buffer.push(')');
             }
 
             Action::PrintFid => buffer.push_str("(print-file-fid)"),
             Action::Quit => buffer.push_str("(lipe-scan-break 0)"),
 
             Action::Prune | Action::List | Action::FileList(_) => {
-                return Err(CompileError::UnsupportedAction(format!("{self:?}")));
+                return Err(CompileError::Action(format!("{self:?}")));
             }
         }
 

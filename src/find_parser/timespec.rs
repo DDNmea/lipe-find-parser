@@ -31,9 +31,9 @@ impl Parseable for MinDefault {
     }
 }
 
-impl Into<TimeSpec> for MinDefault {
-    fn into(self) -> TimeSpec {
-        self.0
+impl From<MinDefault> for TimeSpec {
+    fn from(val: MinDefault) -> Self {
+        val.0
     }
 }
 
@@ -47,9 +47,9 @@ impl Parseable for DayDefault {
     }
 }
 
-impl Into<TimeSpec> for DayDefault {
-    fn into(self) -> TimeSpec {
-        self.0
+impl From<DayDefault> for TimeSpec {
+    fn from(val: DayDefault) -> Self {
+        val.0
     }
 }
 

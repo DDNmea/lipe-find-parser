@@ -1,13 +1,11 @@
-use thiserror::Error;
-
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum CompileError {
     #[error("Although this expression is valid, LiPE does not support this test: {0}")]
-    UnsupportedTest(String),
+    Test(String),
     #[error("Although this expression is valid, LiPE does not support this action: {0}")]
-    UnsupportedAction(String),
+    Action(String),
     #[error("Although this expression is valid, LiPE does not support this action: {0}")]
-    UnsupportedOption(String),
+    Option(String),
     #[error("Although this format string is valid, LiPE does not support this formatting: {0}")]
-    UnsupportedFormat(String),
+    Format(String),
 }
